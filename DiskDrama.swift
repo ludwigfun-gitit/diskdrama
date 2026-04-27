@@ -40,7 +40,6 @@ func formatBytes(_ bytes: Int64) -> String {
 
 // MARK: - App Delegate
 
-@main
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusItem: NSStatusItem!
@@ -52,7 +51,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private let pollInterval: TimeInterval = 10 * 60
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory) // No Dock icon
+        NSApp.setActivationPolicy(.accessory)
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         buildMenu()
@@ -168,9 +167,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openStorageSettings() {
-        // macOS 13+ System Settings URL
         if let url = URL(string: "x-apple.systempreferences:com.apple.settings.Storage") {
             NSWorkspace.shared.open(url)
         }
     }
 }
+
+// MARK: - Entry Point
+
+let app = NSApplication.shared
+let delegate = AppDelegate()
+app.delegate = delegate
+app.run()
