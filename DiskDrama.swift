@@ -16,7 +16,7 @@ struct DiskInfo {
 
     static func read() -> DiskInfo? {
         var stat = statvfs()
-        guard statvfs("/", &stat) == 0 else { return nil }
+        guard statvfs("/System/Volumes/Data", &stat) == 0 else { return nil }
         let blockSize = Int64(stat.f_bsize)
         let total     = Int64(stat.f_blocks) * blockSize
         let free      = Int64(stat.f_bavail) * blockSize   // bavail = available to non-root
