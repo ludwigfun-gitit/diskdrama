@@ -50,18 +50,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Poll interval: 10 minutes
     private let pollInterval: TimeInterval = 10 * 60
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    func setup() {
         NSApp.setActivationPolicy(.accessory)
-
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         buildMenu()
         refresh()
-
         timer = Timer.scheduledTimer(
             withTimeInterval: pollInterval,
             repeats: true
         ) { [weak self] _ in self?.refresh() }
     }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {}
 
     // MARK: - Menu
 
@@ -182,4 +182,5 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 let app = NSApplication.shared
 let delegate = AppDelegate()
 app.delegate = delegate
+delegate.setup()
 app.run()
