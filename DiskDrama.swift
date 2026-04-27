@@ -15,9 +15,34 @@ struct DiskInfo {
     var freeFraction: Double { 1.0 - usedFraction }
 
     static func read() -> DiskInfo? {
-        // URLResourceValues is the modern, APFS-aware way to query volume sizes.
-        // statvfs is unreliable on APFS: f_bsize is the preferred I/O size (often 1 MB),
-        // not the fragment size, so multiplying it by f_blocks over-reports by ~256×.
+        // Prefer the APFS *container* view (matches macOS Storage / About This Mac):
+        // it includes System, Preboot, Recovery, VM, and Data volumes that all share
+        // the same physical capacity ceiling. URLResourceValues only sees the Data
+        // volume's slice (~460 GB on a ~494 GB container) which under-reports total.
+        if let info = readAPFSContainer() { return info }
+        return readVolume()
+    }
+
+    private static func readAPFSContainer() -> DiskInfo? {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
+        task.arguments = ["info", "-plist", "/"]
+        let out = Pipe()
+        task.standardOutput = out
+        task.standardError = Pipe()
+        do { try task.run() } catch { return nil }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+        guard task.terminationStatus == 0,
+              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+              let total = (plist["APFSContainerSize"] as? NSNumber)?.int64Value,
+              let free  = (plist["APFSContainerFree"] as? NSNumber)?.int64Value,
+              total > 0
+        else { return nil }
+        return DiskInfo(freeBytes: free, totalBytes: total)
+    }
+
+    private static func readVolume() -> DiskInfo? {
         let url = URL(fileURLWithPath: "/System/Volumes/Data")
         guard let values = try? url.resourceValues(forKeys: [
             .volumeTotalCapacityKey,
