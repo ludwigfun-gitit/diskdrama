@@ -15,12 +15,17 @@ struct DiskInfo {
     var freeFraction: Double { 1.0 - usedFraction }
 
     static func read() -> DiskInfo? {
-        var stat = statvfs()
-        guard statvfs("/System/Volumes/Data", &stat) == 0 else { return nil }
-        let blockSize = Int64(stat.f_bsize)
-        let total     = Int64(stat.f_blocks) * blockSize
-        let free      = Int64(stat.f_bavail) * blockSize   // bavail = available to non-root
-        return DiskInfo(freeBytes: free, totalBytes: total)
+        // URLResourceValues is the modern, APFS-aware way to query volume sizes.
+        // statvfs is unreliable on APFS: f_bsize is the preferred I/O size (often 1 MB),
+        // not the fragment size, so multiplying it by f_blocks over-reports by ~256×.
+        let url = URL(fileURLWithPath: "/System/Volumes/Data")
+        guard let values = try? url.resourceValues(forKeys: [
+            .volumeTotalCapacityKey,
+            .volumeAvailableCapacityKey
+        ]),
+        let total = values.volumeTotalCapacity,
+        let free  = values.volumeAvailableCapacity else { return nil }
+        return DiskInfo(freeBytes: Int64(free), totalBytes: Int64(total))
     }
 
     // Compact label for the menubar, e.g. "42.3 GB"
@@ -118,9 +123,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
     }
 
-    // Tag items by index for easy update
+    // Tag items by index for easy update.
+    // Menu layout: 0 header, 1 sep, 2-5 free/used/total/pct, 6 sep, 7 updated,
+    // 8 sep, 9 refresh, 10 storage, 11 sep, 12 quit.
     private enum MenuIndex: Int {
-        case free = 2, used, total, pct, updated = 8, refresh = 10, storage
+        case free = 2, used, total, pct, updated = 7
     }
 
     @objc private func refresh() {
