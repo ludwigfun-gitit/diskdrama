@@ -7,8 +7,8 @@
 
 set -e
 
-APP_NAME="DiskSentinel"
-SWIFT_FILE="DiskSentinel.swift"
+APP_NAME="DiskDrama"
+SWIFT_FILE="DiskDrama.swift"
 BUILD_DIR=".build"
 BINARY="$BUILD_DIR/$APP_NAME"
 

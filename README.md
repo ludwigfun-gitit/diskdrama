@@ -1,4 +1,4 @@
-# DiskSentinel
+# DiskDrama
 
 Minimal macOS menubar app that shows free disk space on Macintosh HD, polling every 10 minutes.
 
@@ -21,8 +21,8 @@ Minimal macOS menubar app that shows free disk space on Macintosh HD, polling ev
 ```bash
 chmod +x build.sh
 ./build.sh run        # compile + launch immediately
-./build.sh install    # compile + copy to /Applications/DiskSentinel.app
-./build.sh            # compile only → .build/DiskSentinel
+./build.sh install    # compile + copy to /Applications/DiskDrama.app
+./build.sh            # compile only → .build/DiskDrama
 ```
 
 ## Launch at Login (recommended)

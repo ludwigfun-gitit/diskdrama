@@ -1,4 +1,4 @@
-// DiskSentinel — menubar disk space monitor
+// DiskDrama — menubar disk space monitor
 // Requires macOS 13+, no dependencies.
 // Build: see build.sh
 
@@ -107,7 +107,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
 
         menu.addItem(NSMenuItem(
-            title: "Quit DiskSentinel",
+            title: "Quit DiskDrama",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         ))
