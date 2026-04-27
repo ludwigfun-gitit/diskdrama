@@ -91,17 +91,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
-        menu.addItem(NSMenuItem(
+        let refreshItem = NSMenuItem(
             title: "Refresh Now",
             action: #selector(refresh),
             keyEquivalent: "r"
-        ))
+        )
+        refreshItem.target = self
+        menu.addItem(refreshItem)
 
-        menu.addItem(NSMenuItem(
+        let storageItem = NSMenuItem(
             title: "Open Storage Settings…",
             action: #selector(openStorageSettings),
             keyEquivalent: ""
-        ))
+        )
+        storageItem.target = self
+        menu.addItem(storageItem)
 
         menu.addItem(.separator())
 
