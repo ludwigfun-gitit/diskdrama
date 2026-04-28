@@ -15,34 +15,6 @@ struct DiskInfo {
     var freeFraction: Double { 1.0 - usedFraction }
 
     static func read() -> DiskInfo? {
-        // Prefer the APFS *container* view (matches macOS Storage / About This Mac):
-        // it includes System, Preboot, Recovery, VM, and Data volumes that all share
-        // the same physical capacity ceiling. URLResourceValues only sees the Data
-        // volume's slice (~460 GB on a ~494 GB container) which under-reports total.
-        if let info = readAPFSContainer() { return info }
-        return readVolume()
-    }
-
-    private static func readAPFSContainer() -> DiskInfo? {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/sbin/diskutil")
-        task.arguments = ["info", "-plist", "/"]
-        let out = Pipe()
-        task.standardOutput = out
-        task.standardError = Pipe()
-        do { try task.run() } catch { return nil }
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        task.waitUntilExit()
-        guard task.terminationStatus == 0,
-              let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-              let total = (plist["APFSContainerSize"] as? NSNumber)?.int64Value,
-              let free  = (plist["APFSContainerFree"] as? NSNumber)?.int64Value,
-              total > 0
-        else { return nil }
-        return DiskInfo(freeBytes: free, totalBytes: total)
-    }
-
-    private static func readVolume() -> DiskInfo? {
         let url = URL(fileURLWithPath: "/System/Volumes/Data")
         guard let values = try? url.resourceValues(forKeys: [
             .volumeTotalCapacityKey,
@@ -53,18 +25,19 @@ struct DiskInfo {
         return DiskInfo(freeBytes: Int64(free), totalBytes: Int64(total))
     }
 
-    // Compact label for the menubar, e.g. "42.3 GB"
     var menubarLabel: String { formatBytes(freeBytes) }
 
-    // Alert threshold check
-    var isLow: Bool { freeBytes < 5 * 1_073_741_824 }      // < 5 GB
-    var isCritical: Bool { freeBytes < 1 * 1_073_741_824 } // < 1 GB
+    // Thresholds match the units macOS uses (decimal GB).
+    var isLow: Bool { freeBytes < 5 * 1_000_000_000 }
+    var isCritical: Bool { freeBytes < 1 * 1_000_000_000 }
 }
 
+// macOS Storage / Finder / About This Mac all use decimal SI units
+// (1 GB = 10^9 bytes), not binary GiB. Match them.
 func formatBytes(_ bytes: Int64) -> String {
-    let gb = Double(bytes) / 1_073_741_824
+    let gb = Double(bytes) / 1_000_000_000
     if gb >= 1 { return String(format: "%.1f GB", gb) }
-    let mb = Double(bytes) / 1_048_576
+    let mb = Double(bytes) / 1_000_000
     return String(format: "%.0f MB", mb)
 }
 
@@ -164,7 +137,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func updateMenuBar(_ info: DiskInfo) {
         guard let button = statusItem.button else { return }
-
         let icon = info.isCritical ? "⛔️" : info.isLow ? "⚠️" : "💾"
         button.title = "\(icon) \(info.menubarLabel)"
         button.toolTip = "Free: \(info.menubarLabel) of \(formatBytes(info.totalBytes))"
