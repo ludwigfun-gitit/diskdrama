@@ -123,7 +123,7 @@ low-space alert, exactly as the README and the HTML's own caption state. The
 danger-outlined button in the HTML is a defect in the artifact and should be
 treated as such wherever it turns up again — not re-litigated.
 
-Applied in `e050b12`; `DeleteButtonStyle` was removed entirely, since
+Applied in commit `b3b2e98`; `DeleteButtonStyle` was removed entirely, since
 `AccentButtonStyle` already carries the destructive variant the confirm sheet
 will need at Step 9.
 
