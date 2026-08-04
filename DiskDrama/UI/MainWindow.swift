@@ -22,8 +22,8 @@ struct MainWindow: View {
         }
         .background(Theme.content)
         .frame(minWidth: 940, minHeight: 620)
-        .sheet(isPresented: $model.isShowingAPIKeySheet) {
-            APIKeySheet(model: model)
+        .sheet(isPresented: $model.isShowingSettings) {
+            SettingsSheet(model: model)
         }
         .sheet(item: $model.activeSheet) { sheet in
             switch sheet {
@@ -110,6 +110,7 @@ struct MainWindow: View {
             case .tier(let tier): TierPane(model: model, tier: tier, onScan: onScan)
             case .changes:        ChangesPane(model: model)
             case .history:        HistoryPane(model: model)
+            case .watching:       WatchingPane(model: model)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -105,15 +105,12 @@ struct Sidebar: View {
                 badgeIsAccent: false,
                 isActive: model.pane == .history,
                 action: { model.pane = .history })
-            // Watching has no destination of its own yet — F21 builds it. The row
-            // shows the count rather than pretending to be a link that goes
-            // nowhere.
             NavRow(
                 title: "Watching",
                 badge: "\(model.watchedCount)",
                 badgeIsAccent: false,
-                isActive: false,
-                action: nil)
+                isActive: model.pane == .watching,
+                action: { model.pane = .watching })
         }
     }
 
@@ -141,9 +138,7 @@ struct Sidebar: View {
     // MARK: - Settings
 
     private var settingsRow: some View {
-        // Opens the API-key sheet for now; Step 10 turns this into the real
-        // Settings surface and the key becomes one section of it.
-        HoverRow(isActive: false, action: { model.isShowingAPIKeySheet = true }, label: "Settings") {
+        HoverRow(isActive: false, action: { model.isShowingSettings = true }, label: "Settings") {
             HStack(spacing: 9) {
                 Image(systemName: "gearshape")
                     .font(.system(size: 13, weight: .regular))

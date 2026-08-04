@@ -66,6 +66,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // the sidebar sits directly above a figure the user just watched
             // being recalculated.
             disk.refresh()
+            // F17: "reappears next scan" — expired by the event rather than by
+            // a timestamp, so there is no sweep to run.
+            model.clearSnoozes()
+            model.checkWatches()
         }
         menubar?.showScanStatus("Scanning…", canStop: true)
         observeScanState()

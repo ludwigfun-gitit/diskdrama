@@ -290,14 +290,31 @@ struct ExplanationPanel: View {
                 .buttonStyle(GhostButtonStyle(height: 29, fontSize: 12.5))
 
             if tier == .safe {
-                Button("Watch this") {}
-                    .buttonStyle(GhostButtonStyle(height: 29, fontSize: 12.5))
-                    .disabled(true)   // F21 — Step 11
+                let watching = model.isWatching(item)
+                Button(watching ? "Watching" : "Watch this") {
+                    if watching {
+                        if let w = model.watches.first(where: { $0.path == item.path }) {
+                            model.unwatch(w)
+                        }
+                    } else {
+                        model.watch(item)
+                    }
+                }
+                .buttonStyle(GhostButtonStyle(height: 29, fontSize: 12.5))
             }
 
-            Button(tier == .appManaged ? "Never suggest this" : "Not now") {}
-                .buttonStyle(QuietButtonStyle(height: 29))
-                .disabled(true)       // F17/F18 — Step 10
+            // F17 vs F18. Tier 2 gets the permanent one because DiskDrama can
+            // never act on those items anyway — "not now" would just mean
+            // "show me the same thing I can't use again next scan".
+            if tier == .appManaged {
+                Button("Never suggest this") { model.dismiss(item) }
+                    .buttonStyle(QuietButtonStyle(height: 29))
+            } else {
+                Button("Not now") { model.snooze(item) }
+                    .buttonStyle(QuietButtonStyle(height: 29))
+                Button("Never") { model.dismiss(item) }
+                    .buttonStyle(QuietButtonStyle(height: 29))
+            }
 
             Spacer(minLength: 8)
 

@@ -21,6 +21,7 @@ final class AppModel {
         case tier(Tier)
         case changes
         case history
+        case watching
     }
 
     let scanEngine: ScanEngine
@@ -30,8 +31,8 @@ final class AppModel {
     /// tiering; this only enriches the item the user is looking at.
     let explanations = ExplanationService()
 
-    /// Minimal API-key entry until Step 10 builds the real Settings surface.
-    var isShowingAPIKeySheet = false
+    /// F19's Settings surface, which also carries the API key (A02).
+    var isShowingSettings = false
 
     // MARK: - Deletion (F14–F16)
 
@@ -67,6 +68,14 @@ final class AppModel {
     /// Items deleted in this session, so they leave the list immediately
     /// without waiting for a rescan.
     private var deletedPaths: Set<String> = []
+
+    // MARK: - Snooze / dismiss (F17, F18)
+
+    /// F18 — "never suggest this". Still scanned, still counted toward totals,
+    /// simply never offered. Survives rescans.
+    private(set) var ignoredPaths: Set<String> = []
+    /// F17 — "not now". Hidden until the next scan, then back.
+    private(set) var snoozedPaths: Set<String> = []
 
     /// The last thing that went wrong, for the sheet to show.
     var deletionError: String?
@@ -258,8 +267,11 @@ final class AppModel {
             let context = ModelContext(container)
             cleanupLog = try context.fetch(FetchDescriptor<CleanupEntry>(
                 sortBy: [SortDescriptor(\.performedAt, order: .reverse)]))
-            watchedCount = try context.fetch(FetchDescriptor<WatchedPath>())
-                .filter(\.isActive).count
+            watches = try context.fetch(FetchDescriptor<WatchedPath>(
+                sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
+            watchedCount = watches.filter(\.isActive).count
+            ignoredPaths = Set(try context.fetch(FetchDescriptor<IgnoredPath>()).map(\.path))
+            snoozedPaths = Set(try context.fetch(FetchDescriptor<SnoozedPath>()).map(\.path))
 
             Log.app.notice("""
             window state — seconds=\(String(format: "%.2f", Date().timeIntervalSince(startedAt)), privacy: .public) \
@@ -284,7 +296,145 @@ final class AppModel {
     /// next scan — a row you just deleted still sitting there reads as a
     /// failure, and clicking it again would fail the existence guard.
     func items(in tier: Tier) -> [Recommendation] {
-        (recommendations?.inTier(tier) ?? []).filter { !deletedPaths.contains($0.path) }
+        (recommendations?.inTier(tier) ?? []).filter {
+            !deletedPaths.contains($0.path)
+                && !ignoredPaths.contains($0.path)
+                && !snoozedPaths.contains($0.path)
+        }
+    }
+
+    /// F17: hidden now, back after the next scan.
+    func snooze(_ item: Recommendation) {
+        snoozedPaths.insert(item.path)
+        write { context in context.insert(SnoozedPath(path: item.path, snapshotID: UUID())) }
+    }
+
+    /// F18: hidden for good, until un-ignored in Settings.
+    func dismiss(_ item: Recommendation) {
+        ignoredPaths.insert(item.path)
+        write { context in context.insert(IgnoredPath(path: item.path, name: item.name)) }
+    }
+
+    func unignore(path: String) {
+        ignoredPaths.remove(path)
+        write { context in
+            let rows = (try? context.fetch(FetchDescriptor<IgnoredPath>())) ?? []
+            for row in rows where row.path == path { context.delete(row) }
+        }
+    }
+
+    /// Snoozes are cleared wholesale when a scan lands — that *is* F17's
+    /// "reappears next scan", and expiring them by event rather than by
+    /// timestamp means there is no sweep to run and nothing to leak.
+    func clearSnoozes() {
+        snoozedPaths.removeAll()
+        write { context in
+            for row in (try? context.fetch(FetchDescriptor<SnoozedPath>())) ?? [] {
+                context.delete(row)
+            }
+        }
+    }
+
+    /// F19 — "don't even look". Unlike F18 this changes what the *scanner*
+    /// does, so it lives in `Settings` where the scan's inner loop can read it
+    /// synchronously, not in the store.
+    func exclude(path: String) {
+        var current = Settings.shared.exclusions
+        guard !current.contains(path) else { return }
+        current.append(path)
+        Settings.shared.exclusions = current
+    }
+
+    func unexclude(path: String) {
+        Settings.shared.exclusions = Settings.shared.exclusions.filter { $0 != path }
+    }
+
+    // MARK: - Watches (F21)
+
+    private(set) var watches: [WatchedPath] = []
+
+    /// A06: the default threshold is the size the item had when it was last
+    /// cleaned — "back to where it was when you dealt with it" is the event
+    /// worth being told about, and it needs no number from the user.
+    func watch(_ item: Recommendation) {
+        let lastCleanedSize = cleanupLog.first { $0.path == item.path }?.sizeBytes ?? item.sizeBytes
+        write { context in
+            context.insert(WatchedPath(path: item.path, name: item.name,
+                                       sizeAtLastClean: lastCleanedSize))
+        }
+        loadPersistedState()
+    }
+
+    func unwatch(_ watch: WatchedPath) {
+        let path = watch.path
+        write { context in
+            for row in (try? context.fetch(FetchDescriptor<WatchedPath>())) ?? []
+            where row.path == path { context.delete(row) }
+        }
+        loadPersistedState()
+    }
+
+    var isWatching: (Recommendation) -> Bool {
+        { [watches] item in watches.contains { $0.path == item.path && $0.isActive } }
+    }
+
+    /// Checked after every scan. The scan has just measured everything, so this
+    /// costs nothing beyond a dictionary lookup — no second walk.
+    func checkWatches() {
+        guard let set = recommendations else { return }
+        let sizes = Dictionary(set.recommendations.map { ($0.path, $0.sizeBytes) },
+                               uniquingKeysWith: { first, _ in first })
+
+        for watch in watches where watch.isActive {
+            guard let current = sizes[watch.path] else {
+                // F21's failure case: the watched path is gone entirely. The
+                // watch retires itself rather than firing forever against
+                // nothing.
+                retire(watch, reason: "the folder is no longer there")
+                continue
+            }
+            guard current >= watch.thresholdBytes, watch.thresholdBytes > 0 else { continue }
+
+            // One notification per regrowth, not one per scan. Without this a
+            // watch on something that stays large becomes a daily nag and the
+            // user turns notifications off entirely.
+            if let last = watch.lastNotifiedAt, Date().timeIntervalSince(last) < 12 * 3600 { continue }
+
+            Notifier.post(
+                title: "\(watch.name) is back",
+                body: "\(PathDisplay.short(watch.path)) is at \(ByteFormat.compact(current)) — "
+                    + "about where it was when you last cleaned it.",
+                category: .watchExceeded,
+                id: "watch-\(watch.path)")
+            markNotified(watch)
+        }
+    }
+
+    private func retire(_ watch: WatchedPath, reason: String) {
+        let path = watch.path
+        write { context in
+            for row in (try? context.fetch(FetchDescriptor<WatchedPath>())) ?? []
+            where row.path == path {
+                row.retiredAt = Date()
+                row.retiredReason = reason
+            }
+        }
+        loadPersistedState()
+    }
+
+    private func markNotified(_ watch: WatchedPath) {
+        let path = watch.path
+        write { context in
+            for row in (try? context.fetch(FetchDescriptor<WatchedPath>())) ?? []
+            where row.path == path { row.lastNotifiedAt = Date() }
+        }
+    }
+
+    private func write(_ body: (ModelContext) -> Void) {
+        guard let container = DataStore.shared.state.container else { return }
+        let context = ModelContext(container)
+        body(context)
+        try? context.save()
     }
 
     func reclaimable(in tier: Tier) -> Int64 {
