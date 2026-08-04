@@ -129,6 +129,30 @@ final class MenubarController {
         return menu
     }
 
+    /// The status item's glyph, built once and reused — `render()` runs on every
+    /// poll, and rebuilding an `NSImage` on each one to hand back an identical
+    /// picture is pure waste.
+    ///
+    /// Template rendering is what makes this correct in both appearances: AppKit
+    /// draws a template image using the menu bar's own foreground colour, so a
+    /// light and a dark menu bar are handled without the app knowing which it is
+    /// on. That is also why the emoji it replaces had to go — emoji carry their
+    /// own colour and ignore appearance entirely.
+    private static let statusIcon: NSImage? = {
+        let image = NSImage(systemSymbolName: "internaldrive.fill",
+                            accessibilityDescription: "Disk space")
+        image?.isTemplate = true
+        return image
+    }()
+
+    private func applyStatusIcon(to button: NSStatusBarButton) {
+        button.image = Self.statusIcon
+        // Both the glyph and the byte count are shown, so the position has to be
+        // stated rather than inherited.
+        button.imagePosition = .imageLeading
+        button.imageHugsTitle = true
+    }
+
     /// A text capacity bar. A menu item cannot host an arbitrary view cheaply,
     /// and a monospaced block gauge reads accurately at a glance without one.
     private func capacityBar(_ fraction: Double) -> String {
@@ -166,9 +190,16 @@ final class MenubarController {
         let free = info.availableBytes
 
         if let button = statusItem?.button {
-            let icon = free < settings.criticalThresholdBytes ? "⛔️"
-                     : free < settings.lowThresholdBytes    ? "⚠️" : "💾"
-            button.title = "\(icon) \(ByteFormat.compact(free))"
+            applyStatusIcon(to: button)
+            // The state signal moved from the glyph itself to its tint. A
+            // template image takes the tint colour when one is set and follows
+            // the menu bar's own appearance when it is nil, so "normal" needs
+            // no colour of its own — which is the point, since a permanently
+            // coloured menu bar icon stops reading as a warning.
+            button.contentTintColor = free < settings.criticalThresholdBytes ? .systemRed
+                                    : free < settings.lowThresholdBytes    ? .systemOrange
+                                    : nil
+            button.title = ByteFormat.compact(free)
             button.toolTip = "Free: \(ByteFormat.compact(free)) of \(ByteFormat.compact(info.totalBytes))"
         }
 
@@ -229,7 +260,12 @@ final class MenubarController {
     /// never a stale number presented as current.
     private func renderUnreadable() {
         if let button = statusItem?.button {
-            button.title = "💾 —"
+            applyStatusIcon(to: button)
+            // No threshold to signal — an unreadable volume is not a "you are
+            // running out" state, and colouring it red would say something the
+            // app does not know.
+            button.contentTintColor = nil
+            button.title = "—"
             button.toolTip = "DiskDrama can't read the boot volume right now."
         }
         headlineItem?.attributedTitle = NSAttributedString(
