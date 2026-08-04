@@ -48,6 +48,11 @@ final class ScanEngine {
     /// scan queue, not here — it is a full tree walk and does not belong on main.
     private(set) var recommendations: RecommendationSet?
 
+    /// What changed since the previous scan (F20). Nil on a first-ever scan —
+    /// which the UI must render as "first scan, nothing to compare against"
+    /// rather than as "nothing changed".
+    private(set) var delta: Delta?
+
     /// Non-nil while the traversal has been stuck on one directory. Set by the
     /// watchdog on the main actor, not by the walk — the whole point is that it
     /// works when the walk is too blocked to report anything.
@@ -270,6 +275,57 @@ final class ScanEngine {
         }
 
         completion?(result)
-        phase = .idle
+        persist(result: result, recommendations: set, generation: resultGeneration)
+    }
+
+    /// Writes the snapshot and computes the delta, off the main actor.
+    ///
+    /// The scan itself is finished at this point, so `phase` stays `.finishing`
+    /// until the write lands — the UI should not present results as settled while
+    /// history is still being written, or a quit in that window loses the scan
+    /// silently.
+    private func persist(result: ScanResult, recommendations: RecommendationSet, generation resultGeneration: Int) {
+        guard let container = DataStore.shared.state.container else {
+            // Store unavailable. Results are still shown for this session; the app
+            // degrades to "works but does not remember" rather than discarding a
+            // scan the user just waited for.
+            Log.scan.error("no store — scan results not persisted, delta unavailable")
+            phase = .idle
+            return
+        }
+
+        let volume = DiskInfo.read()
+        let floor = Settings.shared.pruneFloorBytes
+
+        Task {
+            let store = BackgroundStore(modelContainer: container)
+            do {
+                let delta = try await store.persistAndComputeDelta(
+                    result: result, recommendations: recommendations,
+                    volume: volume, pruneFloorBytes: floor)
+                await MainActor.run {
+                    guard self.generation == resultGeneration else { return }
+                    self.delta = delta
+                    self.phase = .idle
+                    if let delta {
+                        Log.scan.notice("""
+                        delta — appeared=\(delta.appeared.count, privacy: .public) \
+                        grew=\(delta.grew.count, privacy: .public) \
+                        shrank=\(delta.shrank.count, privacy: .public) \
+                        gone=\(delta.disappeared.count, privacy: .public) \
+                        regrown=\(delta.regrown.count, privacy: .public) \
+                        net=\(ByteFormat.delta(delta.netBytes), privacy: .public)
+                        """)
+                    } else {
+                        Log.scan.notice("delta — first scan, no baseline to compare against")
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    Log.scan.error("snapshot write failed: \(error.localizedDescription, privacy: .public)")
+                    self.phase = .idle
+                }
+            }
+        }
     }
 }

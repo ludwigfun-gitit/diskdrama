@@ -132,4 +132,33 @@ actor BackgroundStore {
         descriptor.fetchLimit = 1
         return try modelContext.fetch(descriptor).first
     }
+
+    /// Persists a scan and returns the delta against the scan before it (F20).
+    ///
+    /// Both halves happen on this actor because they are one logical operation and
+    /// both touch `modelContext`, which is isolated here. The delta is reduced to
+    /// a `Sendable` value before it crosses back — `SnapshotItem` is a model
+    /// object and must not escape its context.
+    func persistAndComputeDelta(
+        result: ScanResult,
+        recommendations: RecommendationSet,
+        volume: DiskInfo?,
+        pruneFloorBytes: Int64
+    ) throws -> Delta? {
+
+        let previous = try latestSnapshot()
+
+        let snapshot = SnapshotWriter.makeSnapshot(
+            from: result,
+            recommendations: recommendations,
+            volume: volume,
+            pruneFloorBytes: pruneFloorBytes)
+
+        // Delta is computed before the save so `previous` is unambiguously the
+        // scan before this one, whatever the history-pruning rule does next.
+        let delta = previous.map { DeltaComputer.compare(previous: $0, current: snapshot) }
+
+        try save(snapshot)
+        return delta
+    }
 }
