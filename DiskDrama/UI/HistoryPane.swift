@@ -17,6 +17,13 @@ struct HistoryPane: View {
                 blurb: "Every cleanup DiskDrama has run for you, oldest tricks and all."
             ) { EmptyView() }
 
+            if let verification = model.lastVerification {
+                Callout(text: verification.message,
+                        symbol: verification.mode == .trash ? "trash" : "checkmark.circle")
+                    .padding(.horizontal, 12)
+                    .padding(.top, 10)
+            }
+
             if model.cleanupLog.isEmpty {
                 EmptyPane(
                     title: "No cleanups yet",

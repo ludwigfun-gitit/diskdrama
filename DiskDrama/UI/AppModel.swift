@@ -34,16 +34,21 @@ final class AppModel {
     /// F19's Settings surface, which also carries the API key (A02).
     var isShowingSettings = false
 
+    /// F05. Shown once, on the first launch with no prior state.
+    var isShowingOnboarding = !Settings.shared.hasCompletedOnboarding
+
     // MARK: - Deletion (F14–F16)
 
     enum ActiveSheet: Identifiable {
         case delete(Recommendation)
         case batchClean(Tier)
+        case target
 
         var id: String {
             switch self {
             case .delete(let item):  "delete-\(item.path)"
             case .batchClean(let t): "batch-\(t.rawValue)"
+            case .target:            "target"
             }
         }
     }
@@ -122,10 +127,70 @@ final class AppModel {
     /// rather than as N unrelated rows.
     func deleteBatch(_ items: [Recommendation]) async {
         let batchID = UUID()
+        let freeBefore = disk.info?.strictAvailableBytes ?? 0
+        let mode: DeletionMode = moveToTrash ? .trash : .immediate
+        var expected: Int64 = 0
+
         for item in items {
-            await delete(item, batchID: batchID)
+            if await delete(item, batchID: batchID) { expected += item.sizeBytes }
         }
+        verify(expected: expected, mode: mode, freeBefore: freeBefore)
         loadPersistedState()
+    }
+
+    // MARK: - Verify reclaimed space (F24)
+
+    struct Verification: Sendable {
+        let expectedBytes: Int64
+        let observedBytes: Int64
+        let mode: DeletionMode
+        let message: String
+    }
+
+    /// What the app is willing to claim after a job, and why.
+    private(set) var lastVerification: Verification?
+
+    /// Mode-aware, per A04's ripple.
+    ///
+    /// The comparison uses `strictAvailableBytes` — the reading that *excludes*
+    /// purgeable space. The friendlier number macOS shows everywhere includes a
+    /// pool the system shuffles on its own, so it can move without anything
+    /// being reclaimed and fail to move when something was. That is exactly the
+    /// wrong yardstick for "did that deletion actually work", and keeping both
+    /// readings since Step 1 is what makes this answerable at all.
+    func verify(expected: Int64, mode: DeletionMode, freeBefore: Int64) {
+        guard expected > 0 else { return }
+        disk.refresh()
+        let after = disk.info?.strictAvailableBytes ?? freeBefore
+        let observed = after - freeBefore
+
+        let message: String
+        switch mode {
+        case .trash:
+            // Never claim reclaimed space for something still on the disk.
+            message = "\(ByteFormat.compact(expected)) moved to the Trash. That space comes back "
+                + "when you empty it — until then it is still on the disk."
+        case .immediate:
+            let drift = abs(observed - expected)
+            let tolerance = max(Int64(Double(expected) * 0.05), 50_000_000)
+            if drift <= tolerance {
+                message = "\(ByteFormat.compact(expected)) deleted, and the volume shows about "
+                    + "\(ByteFormat.compact(observed)) more free. That matches."
+            } else if observed < expected {
+                message = "\(ByteFormat.compact(expected)) deleted, but the volume only shows "
+                    + "\(ByteFormat.compact(observed)) more free so far. APFS can take a moment to "
+                    + "release space, and local snapshots may still be holding some of it — it "
+                    + "usually catches up within a few minutes."
+            } else {
+                message = "\(ByteFormat.compact(expected)) deleted, and the volume shows "
+                    + "\(ByteFormat.compact(observed)) more free — more than expected, because "
+                    + "something else released space at the same time."
+            }
+        }
+
+        lastVerification = Verification(expectedBytes: expected, observedBytes: observed,
+                                        mode: mode, message: message)
+        Log.app.notice("verified — expected=\(ByteFormat.compact(expected), privacy: .public) observed=\(ByteFormat.compact(observed), privacy: .public) mode=\(mode.rawValue, privacy: .public)")
     }
 
     /// F16. Only offered for Trash-mode entries that are still restorable.
@@ -595,5 +660,22 @@ final class AppModel {
 
     var blindSpots: [(path: String, reason: BlindSpotReason)] {
         recommendations?.blindSpots ?? []
+    }
+}
+
+// MARK: - Full Disk Access (F05)
+
+extension AppModel {
+    var hasFullDiskAccess: Bool { FullDiskAccess.isGranted() }
+
+    /// Dismissal is remembered but not permanent — it re-arms if the user
+    /// dismisses it and later grants access and revokes it again, because at
+    /// that point it is news rather than nagging.
+    var hasDismissedAccessBanner: Bool {
+        Settings.shared.fullDiskAccessBannerDismissedAt != nil
+    }
+
+    func dismissAccessBanner() {
+        Settings.shared.fullDiskAccessBannerDismissedAt = Date()
     }
 }

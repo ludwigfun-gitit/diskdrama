@@ -25,10 +25,14 @@ struct MainWindow: View {
         .sheet(isPresented: $model.isShowingSettings) {
             SettingsSheet(model: model)
         }
+        .sheet(isPresented: $model.isShowingOnboarding) {
+            OnboardingSheet(model: model, onScan: onScan)
+        }
         .sheet(item: $model.activeSheet) { sheet in
             switch sheet {
             case .delete(let item):  DeleteConfirmSheet(model: model, item: item)
             case .batchClean(let t): BatchCleanSheet(model: model, tier: t)
+            case .target:            TargetSheet(model: model)
             }
         }
     }
@@ -45,15 +49,14 @@ struct MainWindow: View {
 
             scanStatus
 
-            // F23's planner. Present because it is part of the window's identity
-            // in the handoff, disabled until the flow behind it exists.
             Button {
+                model.activeSheet = .target
             } label: {
                 Label("Get me to…", systemImage: "target")
                     .labelStyle(.titleAndIcon)
             }
             .buttonStyle(GhostButtonStyle())
-            .disabled(true)
+            .disabled(model.hasNeverScanned)
             .accessibilityLabel("Get me to a free-space target")
 
             Button(action: model.scanEngine.isRunning ? onStopScan : onScan) {

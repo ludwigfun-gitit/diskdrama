@@ -50,11 +50,37 @@ final class DiskMonitor {
         timer = nil
     }
 
+    /// Fired when free space crosses a threshold it was not already below.
+    /// F25 hangs off this.
+    @ObservationIgnored var onThresholdCrossed: ((DiskInfo, Bool) -> Void)?
+
+    /// The band the last reading fell in, so an alert fires on the *crossing*
+    /// rather than on every poll while the disk stays full. Re-alerting on a
+    /// further crossing is the one case that bypasses the quiet period.
+    private var wasCritical = false
+    private var wasLow = false
+
     /// A failed read sets `info` to nil rather than leaving the last value in
     /// place. F01's failure case is explicit that a stale number presented as
     /// current is worse than an honest dash.
     func refresh() {
         info = DiskInfo.read()
+        if let info { checkThresholds(info) }
         onChange?()
+    }
+
+    private func checkThresholds(_ info: DiskInfo) {
+        let critical = info.availableBytes < Settings.shared.criticalThresholdBytes
+        let low = info.availableBytes < Settings.shared.lowThresholdBytes
+
+        // Only a *newly* crossed threshold is an event. Crossing back up
+        // rearms, so a disk hovering at the boundary doesn't alert repeatedly.
+        if critical && !wasCritical {
+            onThresholdCrossed?(info, true)
+        } else if low && !wasLow && !critical {
+            onThresholdCrossed?(info, false)
+        }
+        wasCritical = critical
+        wasLow = low
     }
 }

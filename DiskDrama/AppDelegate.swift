@@ -25,6 +25,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menubar.onScanRequested = { [weak self] in self?.beginScan() }
         menubar.onScanStopRequested = { [weak self] in self?.stopScan() }
         menubar.onOpenWindowRequested = { [weak self] in self?.openMainWindow() }
+
+        // F25: the monitor already polls; the alert rides that rather than
+        // adding a second timer.
+        disk.onThresholdCrossed = { [weak self] info, isCritical in
+            self?.handleLowSpace(info, isCritical: isCritical)
+        }
+        menubar.onSettingsRequested = { [weak self] in
+            self?.openMainWindow()
+            self?.model.isShowingSettings = true
+        }
         self.menubar = menubar
 
         mainWindow = MainWindowController(
@@ -32,8 +42,73 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onScan: { [weak self] in self?.beginScan() },
             onStopScan: { [weak self] in self?.stopScan() })
 
-        _ = DataStore.shared
+        // The dropdown is the surface people see most, so it carries the last
+        // scan's headline from launch rather than only after a fresh scan.
+        // Costs one store read, measured at ~0.1s in Step 6.
+        model.loadPersistedState()
+        refreshMenubarSummary()
+
         logLaunchDiagnostics()
+    }
+
+    /// F25 — the monitor/advisor fusion point.
+    ///
+    /// The alert is only worth interrupting for because it carries the answer
+    /// with it: not "you're low on space" (which the user can see) but "here is
+    /// what you could get back and where the biggest of it is". With no scan
+    /// data it offers a first scan instead of quoting stale numbers.
+    private func handleLowSpace(_ info: DiskInfo, isCritical: Bool) {
+        let settings = Settings.shared
+
+        // Quiet period, bypassed by a *further* crossing — going from low to
+        // critical is new information and should not be swallowed by a timer
+        // that started when the first alert fired.
+        if !isCritical, let last = settings.lastAlertAt,
+           Date().timeIntervalSince(last) < settings.alertQuietPeriodSeconds {
+            Log.app.notice("low-space alert suppressed — inside the quiet period")
+            return
+        }
+        settings.lastAlertAt = Date()
+
+        let free = ByteFormat.compact(info.availableBytes)
+        let body: String
+
+        if let set = model.recommendations, set.totalReclaimableBytes > 0 {
+            let biggest = set.recommendations
+                .filter { $0.tier != .appManaged }
+                .max(by: { $0.sizeBytes < $1.sizeBytes })
+            var text = "Last scan found \(ByteFormat.compact(set.totalReclaimableBytes)) you can get back"
+            if let biggest {
+                text += " — biggest is \(biggest.classification.title), \(ByteFormat.compact(biggest.sizeBytes))."
+            } else {
+                text += "."
+            }
+            body = text
+        } else {
+            body = "I haven't scanned yet, so I can't tell you what's reclaimable. Open DiskDrama and run a scan."
+        }
+
+        Notifier.post(title: "\(free) free.", body: body, category: .lowSpace,
+                      id: "low-space-\(isCritical ? "critical" : "low")")
+        Log.app.notice("low-space alert posted — critical=\(isCritical, privacy: .public)")
+    }
+
+    /// Keeps the dropdown's reclaimable line in step with the last scan. The
+    /// menubar renders it; it does not go looking for scan results itself.
+    private func refreshMenubarSummary() {
+        guard let set = model.recommendations, set.totalReclaimableBytes > 0 else {
+            menubar?.reclaimableSummary = nil
+            return
+        }
+        let biggest = set.recommendations
+            .filter { $0.tier != .appManaged }
+            .max(by: { $0.sizeBytes < $1.sizeBytes })
+        var detail = model.lastScanAt.map { "Last scan \(RelativeTime.phrase($0))." } ?? ""
+        if let biggest {
+            detail += " Biggest: \(biggest.classification.title), \(ByteFormat.compact(biggest.sizeBytes))."
+        }
+        menubar?.reclaimableSummary = (set.totalReclaimableBytes, detail)
+        menubar?.refreshDisplay()
     }
 
     /// A09's main surface. Also the target of the dropdown's ⌘O.
@@ -70,6 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // a timestamp, so there is no sweep to run.
             model.clearSnoozes()
             model.checkWatches()
+            refreshMenubarSummary()
         }
         menubar?.showScanStatus("Scanning…", canStop: true)
         observeScanState()

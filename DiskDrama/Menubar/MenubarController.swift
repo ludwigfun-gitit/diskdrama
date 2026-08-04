@@ -22,11 +22,11 @@ final class MenubarController {
     /// mapping positions to meanings — correct until the day someone inserts a
     /// separator, at which point it silently writes the free-space figure into
     /// the wrong row. References cannot drift.
-    private var freeItem: NSMenuItem?
-    private var usedItem: NSMenuItem?
-    private var totalItem: NSMenuItem?
-    private var usageItem: NSMenuItem?
+    private var headlineItem: NSMenuItem?
+    private var capacityItem: NSMenuItem?
     private var checkedItem: NSMenuItem?
+    private var reclaimableItem: NSMenuItem?
+    private var reclaimableDetailItem: NSMenuItem?
 
     private let settings = Settings.shared
 
@@ -41,6 +41,13 @@ final class MenubarController {
     /// Summons the main window (A09 — the main surface, of which this dropdown
     /// is the gateway).
     var onOpenWindowRequested: (() -> Void)?
+
+    /// Opens Settings straight from the dropdown.
+    var onSettingsRequested: (() -> Void)?
+
+    /// The advisor's headline, supplied by whoever owns the scan results — the
+    /// menubar renders it but does not go looking for it.
+    var reclaimableSummary: (bytes: Int64, detail: String)?
 
     init(monitor: DiskMonitor) {
         self.monitor = monitor
@@ -69,21 +76,36 @@ final class MenubarController {
 
     // MARK: - Menu construction
 
+    /// Builds the dropdown to the handoff's screen 3b.
+    ///
+    /// Still an `NSMenu` rather than a SwiftUI popover: this is the surface the
+    /// user hits far more often than the window, and a native menu costs
+    /// nothing to open, dismisses correctly, and inherits every keyboard and
+    /// accessibility behaviour macOS provides. The handoff's popover styling is
+    /// reproduced where a menu can carry it — a headline free-space figure, a
+    /// capacity bar, freshness, and the reclaimable callout — rather than
+    /// rebuilding menu behaviour from scratch to match a mockup.
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
 
-        menu.addItem(disabled("Macintosh HD — Free Space"))
-        menu.addItem(.separator())
+        headlineItem = disabled("")
+        headlineItem?.attributedTitle = NSAttributedString(string: "—")
+        menu.addItem(headlineItem!)
 
-        freeItem  = disabled("Free:  —")
-        usedItem  = disabled("Used:  —")
-        totalItem = disabled("Total: —")
-        usageItem = disabled("Usage: —")
-        [freeItem, usedItem, totalItem, usageItem].compactMap { $0 }.forEach(menu.addItem)
+        capacityItem = disabled("")
+        menu.addItem(capacityItem!)
 
-        menu.addItem(.separator())
-        checkedItem = disabled("Last checked: —")
+        checkedItem = disabled("")
         menu.addItem(checkedItem!)
+
+        menu.addItem(.separator())
+
+        // The reclaimable line is the whole reason this dropdown is more than a
+        // gauge — it is the advisor speaking from the ambient surface.
+        reclaimableItem = disabled("")
+        menu.addItem(reclaimableItem!)
+        reclaimableDetailItem = disabled("")
+        menu.addItem(reclaimableDetailItem!)
 
         menu.addItem(.separator())
         menu.addItem(action("Open DiskDrama", #selector(openWindow), key: "o"))
@@ -96,16 +118,24 @@ final class MenubarController {
         menu.addItem(stopItem!)
 
         menu.addItem(.separator())
-        menu.addItem(action("Refresh Now", #selector(refreshFromMenu), key: "r"))
+        menu.addItem(action("Refresh", #selector(refreshFromMenu), key: "r"))
+        menu.addItem(action("Settings…", #selector(openSettings), key: ","))
         menu.addItem(action("Open Storage Settings…", #selector(openStorageSettings), key: ""))
 
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Quit DiskDrama",
-                              action: #selector(NSApplication.terminate(_:)),
-                              keyEquivalent: "q")
-        menu.addItem(quit)
-
+        menu.addItem(NSMenuItem(title: "Quit DiskDrama",
+                                action: #selector(NSApplication.terminate(_:)),
+                                keyEquivalent: "q"))
         return menu
+    }
+
+    /// A text capacity bar. A menu item cannot host an arbitrary view cheaply,
+    /// and a monospaced block gauge reads accurately at a glance without one.
+    private func capacityBar(_ fraction: Double) -> String {
+        let width = 18
+        let filled = Int((fraction * Double(width)).rounded())
+        return String(repeating: "▓", count: max(0, min(width, filled)))
+            + String(repeating: "░", count: max(0, width - filled))
     }
 
     private func disabled(_ title: String) -> NSMenuItem {
@@ -124,6 +154,10 @@ final class MenubarController {
 
     @objc private func refreshFromMenu() { monitor.refresh() }
 
+    /// Re-renders without re-reading the volume — for when the *advisor* half
+    /// changed rather than the disk.
+    func refreshDisplay() { render() }
+
     private func render() {
         guard let info = monitor.info else {
             renderUnreadable()
@@ -138,28 +172,57 @@ final class MenubarController {
             button.toolTip = "Free: \(ByteFormat.compact(free)) of \(ByteFormat.compact(info.totalBytes))"
         }
 
-        freeItem?.attributedTitle = freeTitle(for: info)
-        usedItem?.title  = "Used:  \(ByteFormat.compact(info.usedBytes))"
-        totalItem?.title = "Total: \(ByteFormat.compact(info.totalBytes))"
-        usageItem?.title = String(format: "Usage: %.1f%%", info.usedFraction * 100)
+        headlineItem?.attributedTitle = headline(for: info)
+        capacityItem?.attributedTitle = NSAttributedString(
+            string: capacityBar(info.usedFraction),
+            attributes: [.font: NSFont.monospacedSystemFont(ofSize: 11, weight: .regular),
+                         .foregroundColor: NSColor.secondaryLabelColor])
 
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         formatter.dateStyle = .none
-        checkedItem?.title = "Last checked: \(formatter.string(from: info.readAt))"
+        checkedItem?.attributedTitle = NSAttributedString(
+            string: "\(ByteFormat.compact(info.usedBytes)) used · \(Int(info.usedFraction * 100))% · checked \(formatter.string(from: info.readAt))",
+            attributes: [.font: NSFont.monospacedSystemFont(ofSize: 10.5, weight: .regular),
+                         .foregroundColor: NSColor.tertiaryLabelColor])
+
+        renderReclaimable()
     }
 
-    /// The free row carries the state color, so it is always an attributed title —
-    /// including in the normal case. v0 set `attributedTitle` when low and reset it
-    /// to `nil` otherwise, which left the plain `title` and the attributed one as
-    /// two sources of truth for the same row.
-    private func freeTitle(for info: DiskInfo) -> NSAttributedString {
+    /// The advisor's line in the ambient surface. Hidden entirely when there is
+    /// nothing to say — an empty "0 GB reclaimable" row is worse than no row.
+    private func renderReclaimable() {
+        guard let summary = reclaimableSummary, summary.bytes > 0 else {
+            reclaimableItem?.isHidden = true
+            reclaimableDetailItem?.isHidden = true
+            return
+        }
+        reclaimableItem?.isHidden = false
+        reclaimableDetailItem?.isHidden = false
+        reclaimableItem?.attributedTitle = NSAttributedString(
+            string: "\(ByteFormat.compact(summary.bytes)) reclaimable",
+            attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+                         .foregroundColor: NSColor.controlAccentColor])
+        reclaimableDetailItem?.attributedTitle = NSAttributedString(
+            string: summary.detail,
+            attributes: [.font: NSFont.systemFont(ofSize: 11),
+                         .foregroundColor: NSColor.secondaryLabelColor])
+    }
+
+    private func headline(for info: DiskInfo) -> NSAttributedString {
         let free = info.availableBytes
         let color: NSColor = free < settings.criticalThresholdBytes ? .systemRed
                            : free < settings.lowThresholdBytes    ? .systemOrange
                            : .labelColor
-        return NSAttributedString(string: "Free:  \(ByteFormat.compact(free))",
-                                  attributes: [.foregroundColor: color])
+        let text = NSMutableAttributedString(
+            string: ByteFormat.compact(free),
+            attributes: [.font: NSFont.monospacedSystemFont(ofSize: 17, weight: .semibold),
+                         .foregroundColor: color])
+        text.append(NSAttributedString(
+            string: "  free of \(ByteFormat.compact(info.totalBytes))",
+            attributes: [.font: NSFont.systemFont(ofSize: 11.5),
+                         .foregroundColor: NSColor.secondaryLabelColor]))
+        return text
     }
 
     /// F01's failure case: volume unreadable → show `—` and say why in the tooltip,
@@ -169,12 +232,12 @@ final class MenubarController {
             button.title = "💾 —"
             button.toolTip = "DiskDrama can't read the boot volume right now."
         }
-        freeItem?.attributedTitle = NSAttributedString(
-            string: "Free:  —", attributes: [.foregroundColor: NSColor.labelColor])
-        usedItem?.title  = "Used:  —"
-        totalItem?.title = "Total: —"
-        usageItem?.title = "Usage: —"
-        checkedItem?.title = "Last checked: failed"
+        headlineItem?.attributedTitle = NSAttributedString(
+            string: "—", attributes: [.foregroundColor: NSColor.labelColor])
+        capacityItem?.attributedTitle = NSAttributedString(string: "")
+        checkedItem?.attributedTitle = NSAttributedString(string: "Couldn't read the volume")
+        reclaimableItem?.isHidden = true
+        reclaimableDetailItem?.isHidden = true
     }
 
     // MARK: - Scan status
@@ -191,6 +254,10 @@ final class MenubarController {
 
     @objc private func openWindow() {
         onOpenWindowRequested?()
+    }
+
+    @objc private func openSettings() {
+        onSettingsRequested?()
     }
 
     @objc private func scanNow() {

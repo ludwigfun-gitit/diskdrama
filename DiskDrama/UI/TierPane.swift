@@ -46,6 +46,8 @@ struct TierPane: View {
                 }
             }
 
+            reducedModeBanner
+
             if items.isEmpty {
                 emptyState
             } else {
@@ -56,6 +58,32 @@ struct TierPane: View {
                     ExplanationPanel(model: model, tier: tier, item: detail)
                 }
             }
+        }
+    }
+
+    /// F05's failure case, made permanent: without Full Disk Access the app
+    /// runs in reduced mode, and the banner offers the walkthrough again rather
+    /// than leaving the user to wonder why the numbers look thin. Dismissable,
+    /// because a banner you cannot silence is an app that nags.
+    @ViewBuilder
+    private var reducedModeBanner: some View {
+        if !model.hasFullDiskAccess && !model.hasDismissedAccessBanner {
+            HStack(spacing: 11) {
+                Image(systemName: "eye.slash")
+                    .font(.system(size: 14)).foregroundStyle(Theme.text3)
+                Text("Running with blind spots — a lot of reclaimable space lives in places I can't "
+                     + "read without Full Disk Access.")
+                    .font(Theme.body(12.5)).foregroundStyle(Theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button("Fix this") { model.isShowingOnboarding = true }
+                    .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
+                Button("Dismiss") { model.dismissAccessBanner() }
+                    .buttonStyle(QuietButtonStyle(height: 24, fontSize: 12))
+            }
+            .padding(.horizontal, 26).padding(.vertical, 10)
+            .background(Theme.panel)
+            .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
         }
     }
 
