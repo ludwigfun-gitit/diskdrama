@@ -43,4 +43,22 @@ enum ByteFormat {
     static func delta(_ bytes: Int64) -> String {
         bytes >= 0 ? "+" + compact(bytes) : compact(bytes)
     }
+
+    /// Entry and file counts: `12,991`.
+    ///
+    /// Grouped with a comma rather than via `Int.formatted()`, which uses the
+    /// user's locale separator. On a European locale that renders 12991 as
+    /// "12.991" — sitting directly beside "6.9 GB", where the same dot is a
+    /// decimal point, because every size here is formatted non-locally to match
+    /// Finder. One separator meaning two different things in one line of text is
+    /// worse than not localizing at all.
+    static func count(_ value: Int) -> String {
+        let digits = String(abs(value))
+        var grouped = ""
+        for (offset, character) in digits.reversed().enumerated() {
+            if offset > 0 && offset % 3 == 0 { grouped.append(",") }
+            grouped.append(character)
+        }
+        return (value < 0 ? "−" : "") + String(grouped.reversed())
+    }
 }

@@ -4,45 +4,68 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var menubar: MenubarController?
+    private var mainWindow: MainWindowController?
     private let scanEngine = ScanEngine()
-    private var progressObservation: (any NSObjectProtocol)?
+    private let disk = DiskMonitor()
+    private lazy var model = AppModel(scanEngine: scanEngine, disk: disk)
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Accessory: no Dock icon, no menu bar of its own. Step 6 flips this to
-        // `.regular` while the main window is open and back on close, which is
-        // the standard shape for a menubar app that also owns a real window.
+        // Accessory at rest: no Dock icon, no app menu, nothing in ⌘-Tab.
+        // `MainWindowController` flips this to `.regular` while the window is
+        // open and back again on close.
         NSApp.setActivationPolicy(.accessory)
 
         // The monitor starts first and deliberately does not depend on the store.
         // If persistence is broken the app degrades to monitor-only rather than
         // refusing to launch — same honesty the scanner applies to blind spots.
-        let menubar = MenubarController()
+        disk.start()
+
+        let menubar = MenubarController(monitor: disk)
         menubar.start()
         menubar.onScanRequested = { [weak self] in self?.beginScan() }
         menubar.onScanStopRequested = { [weak self] in self?.stopScan() }
+        menubar.onOpenWindowRequested = { [weak self] in self?.openMainWindow() }
         self.menubar = menubar
+
+        mainWindow = MainWindowController(
+            model: model,
+            onScan: { [weak self] in self?.beginScan() },
+            onStopScan: { [weak self] in self?.stopScan() })
 
         _ = DataStore.shared
         logLaunchDiagnostics()
     }
 
+    /// A09's main surface. Also the target of the dropdown's ⌘O.
+    private func openMainWindow() {
+        mainWindow?.show()
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
+        Log.app.notice("applicationWillTerminate — tearing down monitor and cancelling any scan")
         // F04: quitting cancels any in-flight scan and discards partial results.
-        // Nothing to cancel yet — the scan engine arrives in Step 3, and this is
-        // where its cancellation hangs.
+        scanEngine.cancel()
+        disk.stop()
         menubar?.stop()
         menubar = nil
     }
 
-    /// F06 entry point from the dropdown. Until the main window exists (Step 6),
-    /// progress and results surface in the dropdown and the unified log.
+    /// F06's entry point, from the dropdown's "Scan Now" and the window's Scan
+    /// button alike. Both surfaces report progress; neither owns it.
     private func beginScan() {
         guard !scanEngine.isRunning else { return }
 
+        model.scanNotice = nil
+
         scanEngine.start { [weak self] result in
-            self?.menubar?.showScanStatus(
+            guard let self else { return }
+            menubar?.showScanStatus(
                 "Scanned \(ByteFormat.compact(result.totalSizeBytes)) — \(result.blindSpots.count) blind spots"
             )
+            // Free space almost always moved during a scan of any length, and
+            // the sidebar sits directly above a figure the user just watched
+            // being recalculated.
+            disk.refresh()
         }
         menubar?.showScanStatus("Scanning…", canStop: true)
         observeScanState()
@@ -77,11 +100,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the walk instead of asking it to stop.
     private func stopScan() {
         if scanEngine.stall?.isAbandonable == true {
+            let folder = (scanEngine.stall?.path as NSString?)?.lastPathComponent
             scanEngine.abandon()
-            menubar?.showScanStatus("Scan abandoned — that folder wasn't responding.", canStop: false)
+            let notice = folder.map { "Scan abandoned — “\($0)” wasn't responding." }
+                ?? "Scan abandoned — that folder wasn't responding."
+            menubar?.showScanStatus(notice, canStop: false)
+            model.scanNotice = notice
         } else {
             scanEngine.cancel()
             menubar?.showScanStatus("Stopping…", canStop: false)
+            model.scanNotice = "Scan cancelled — showing the previous results."
         }
     }
 

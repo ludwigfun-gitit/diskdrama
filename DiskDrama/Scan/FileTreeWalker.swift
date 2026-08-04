@@ -85,6 +85,16 @@ enum FileTreeWalker {
         var blindSpots: [(path: String, reason: BlindSpotReason)] = []
         var rootNodes: [ScanNode] = []
         var visited = 0
+
+        /// Running total for progress reporting only.
+        ///
+        /// Deliberately *not* derived from the root nodes: those only accrue at
+        /// post-order, so a walk of a deep tree reported `0 bytes` for minutes
+        /// while making perfectly good progress. Accurate and useless is still
+        /// useless — a progress figure that doesn't move is indistinguishable
+        /// from a hang, which is the exact confusion Step 3 spent a day on.
+        var bytesSeen: Int64 = 0
+
         var lastProgressAt = Date.distantPast
 
         // Directories that took long enough to be worth reporting. A single
@@ -245,6 +255,8 @@ enum FileTreeWalker {
                     let logical = Int64(stat.st_size)
                     let modified = Date(timeIntervalSince1970: TimeInterval(stat.st_mtimespec.tv_sec))
 
+                    bytesSeen += physical
+
                     if let current = stack.last {
                         current.sizeBytes += physical
                         current.logicalBytes += logical
@@ -283,7 +295,7 @@ enum FileTreeWalker {
                     control.heartbeat()
                     onProgress(Progress(currentPath: currentPath(),
                                         entriesVisited: visited,
-                                        bytesSoFar: rootNodes.reduce(0) { $0 + $1.sizeBytes }))
+                                        bytesSoFar: bytesSeen))
                 }
             }
 

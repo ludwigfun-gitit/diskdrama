@@ -303,6 +303,13 @@ enum KnowledgeBase {
 
     // MARK: - Classification
 
+    /// Rules indexed by their stable key, for looking one up without re-matching
+    /// a path. `SnapshotRestorer` needs this: a persisted item already knows
+    /// which rule classified it, and re-running the matcher could silently pick
+    /// a different rule if the table has changed since the scan.
+    static let rulesByKey: [String: ClassificationRule] =
+        Dictionary(rules.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+
     /// Classifies one node. Returns nil when nothing matched — the caller decides
     /// what to do with an unknown, and the answer is always Tier 3.
     static func classify(path: String, name: String) -> (rule: ClassificationRule, result: Classification)? {

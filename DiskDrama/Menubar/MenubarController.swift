@@ -12,8 +12,10 @@ import AppKit
 final class MenubarController {
 
     private var statusItem: NSStatusItem?
-    private var timer: Timer?
-    private var lastInfo: DiskInfo?
+
+    /// The volume poll. Owned by the app, not by this controller — the sidebar
+    /// shows the same figure and the two must not drift apart (Step 6).
+    private let monitor: DiskMonitor
 
     /// Menu items whose titles change on refresh, held directly rather than
     /// looked up by index. v0 addressed them via an index enum with a comment
@@ -36,6 +38,14 @@ final class MenubarController {
     /// wedged in an uninterruptible filesystem call and cannot be asked politely.
     var onScanStopRequested: (() -> Void)?
 
+    /// Summons the main window (A09 — the main surface, of which this dropdown
+    /// is the gateway).
+    var onOpenWindowRequested: (() -> Void)?
+
+    init(monitor: DiskMonitor) {
+        self.monitor = monitor
+    }
+
     /// The scan progress row, hidden while idle.
     private var scanItem: NSMenuItem?
     private var stopItem: NSMenuItem?
@@ -47,21 +57,12 @@ final class MenubarController {
         item.menu = buildMenu()
         statusItem = item
 
-        refresh()
-
-        // `.common` mode so the poll keeps firing while a menu is open — on the
-        // default run-loop mode a tracking session starves the timer, which is
-        // exactly when the user is looking at the numbers.
-        let timer = Timer(timeInterval: settings.pollIntervalSeconds, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refresh() }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+        monitor.onChange = { [weak self] in self?.render() }
+        render()
     }
 
     func stop() {
-        timer?.invalidate()
-        timer = nil
+        monitor.onChange = nil
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         statusItem = nil
     }
@@ -85,6 +86,7 @@ final class MenubarController {
         menu.addItem(checkedItem!)
 
         menu.addItem(.separator())
+        menu.addItem(action("Open DiskDrama", #selector(openWindow), key: "o"))
         menu.addItem(action("Scan Now", #selector(scanNow), key: "s"))
         scanItem = disabled("")
         scanItem?.isHidden = true
@@ -120,18 +122,13 @@ final class MenubarController {
 
     // MARK: - Refresh
 
-    @objc private func refreshFromMenu() { refresh() }
+    @objc private func refreshFromMenu() { monitor.refresh() }
 
-    func refresh() {
-        guard let info = DiskInfo.read() else {
+    private func render() {
+        guard let info = monitor.info else {
             renderUnreadable()
             return
         }
-        lastInfo = info
-        render(info)
-    }
-
-    private func render(_ info: DiskInfo) {
         let free = info.availableBytes
 
         if let button = statusItem?.button {
@@ -191,6 +188,10 @@ final class MenubarController {
     }
 
     // MARK: - Actions
+
+    @objc private func openWindow() {
+        onOpenWindowRequested?()
+    }
 
     @objc private func scanNow() {
         onScanRequested?()
