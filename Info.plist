@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundleDisplayName</key>
+	<string>DiskDrama</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Bloo Software</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+
+	<!-- Menubar-resident: no Dock icon, no app menu bar. The main window flips
+	     the activation policy to .regular while it is open (Step 6). -->
+	<key>LSUIElement</key>
+	<true/>
+
+	<!-- Registers the bundled Space Grotesk and Epilogue faces at launch. Path is
+	     relative to Contents/Resources. Both are SIL OFL 1.1; the license text
+	     ships alongside them as OFL.txt. -->
+	<key>ATSApplicationFontsPath</key>
+	<string>.</string>
+</dict>
+</plist>

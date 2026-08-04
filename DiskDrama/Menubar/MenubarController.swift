@@ -1,0 +1,173 @@
+import AppKit
+
+/// The ambient monitor: status item, its dropdown, and the poll that keeps them
+/// current. Carried over from v0 (F01–F04), reshaped so the dropdown can grow
+/// into the design handoff's popover in Step 13 without the polling and
+/// formatting logic having to move again.
+///
+/// Deliberately AppKit. `NSStatusItem` is an AppKit object, the app is menubar-
+/// resident, and SwiftUI's `MenuBarExtra` does not model the popover the handoff
+/// specifies. AppKit owns the lifecycle here; SwiftUI is hosted inside it later.
+@MainActor
+final class MenubarController {
+
+    private var statusItem: NSStatusItem?
+    private var timer: Timer?
+    private var lastInfo: DiskInfo?
+
+    /// Menu items whose titles change on refresh, held directly rather than
+    /// looked up by index. v0 addressed them via an index enum with a comment
+    /// mapping positions to meanings — correct until the day someone inserts a
+    /// separator, at which point it silently writes the free-space figure into
+    /// the wrong row. References cannot drift.
+    private var freeItem: NSMenuItem?
+    private var usedItem: NSMenuItem?
+    private var totalItem: NSMenuItem?
+    private var usageItem: NSMenuItem?
+    private var checkedItem: NSMenuItem?
+
+    /// 10 minutes, matching v0. Becomes a setting in Step 10.
+    private let pollInterval: TimeInterval = 10 * 60
+
+    /// Menubar state thresholds. Also a setting in Step 10 (F01 specifies them
+    /// as user-configurable); constants until then, at v0's values.
+    private let lowThreshold: Int64 = 5_000_000_000
+    private let criticalThreshold: Int64 = 1_000_000_000
+
+    // MARK: - Lifecycle
+
+    func start() {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.menu = buildMenu()
+        statusItem = item
+
+        refresh()
+
+        // `.common` mode so the poll keeps firing while a menu is open — on the
+        // default run-loop mode a tracking session starves the timer, which is
+        // exactly when the user is looking at the numbers.
+        let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
+        statusItem = nil
+    }
+
+    // MARK: - Menu construction
+
+    private func buildMenu() -> NSMenu {
+        let menu = NSMenu()
+
+        menu.addItem(disabled("Macintosh HD — Free Space"))
+        menu.addItem(.separator())
+
+        freeItem  = disabled("Free:  —")
+        usedItem  = disabled("Used:  —")
+        totalItem = disabled("Total: —")
+        usageItem = disabled("Usage: —")
+        [freeItem, usedItem, totalItem, usageItem].compactMap { $0 }.forEach(menu.addItem)
+
+        menu.addItem(.separator())
+        checkedItem = disabled("Last checked: —")
+        menu.addItem(checkedItem!)
+
+        menu.addItem(.separator())
+        menu.addItem(action("Refresh Now", #selector(refreshFromMenu), key: "r"))
+        menu.addItem(action("Open Storage Settings…", #selector(openStorageSettings), key: ""))
+
+        menu.addItem(.separator())
+        let quit = NSMenuItem(title: "Quit DiskDrama",
+                              action: #selector(NSApplication.terminate(_:)),
+                              keyEquivalent: "q")
+        menu.addItem(quit)
+
+        return menu
+    }
+
+    private func disabled(_ title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
+    }
+
+    private func action(_ title: String, _ selector: Selector, key: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: selector, keyEquivalent: key)
+        item.target = self
+        return item
+    }
+
+    // MARK: - Refresh
+
+    @objc private func refreshFromMenu() { refresh() }
+
+    func refresh() {
+        guard let info = DiskInfo.read() else {
+            renderUnreadable()
+            return
+        }
+        lastInfo = info
+        render(info)
+    }
+
+    private func render(_ info: DiskInfo) {
+        let free = info.availableBytes
+
+        if let button = statusItem?.button {
+            let icon = free < criticalThreshold ? "⛔️" : free < lowThreshold ? "⚠️" : "💾"
+            button.title = "\(icon) \(ByteFormat.compact(free))"
+            button.toolTip = "Free: \(ByteFormat.compact(free)) of \(ByteFormat.compact(info.totalBytes))"
+        }
+
+        freeItem?.attributedTitle = freeTitle(for: info)
+        usedItem?.title  = "Used:  \(ByteFormat.compact(info.usedBytes))"
+        totalItem?.title = "Total: \(ByteFormat.compact(info.totalBytes))"
+        usageItem?.title = String(format: "Usage: %.1f%%", info.usedFraction * 100)
+
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        checkedItem?.title = "Last checked: \(formatter.string(from: info.readAt))"
+    }
+
+    /// The free row carries the state color, so it is always an attributed title —
+    /// including in the normal case. v0 set `attributedTitle` when low and reset it
+    /// to `nil` otherwise, which left the plain `title` and the attributed one as
+    /// two sources of truth for the same row.
+    private func freeTitle(for info: DiskInfo) -> NSAttributedString {
+        let free = info.availableBytes
+        let color: NSColor = free < criticalThreshold ? .systemRed
+                           : free < lowThreshold      ? .systemOrange
+                           : .labelColor
+        return NSAttributedString(string: "Free:  \(ByteFormat.compact(free))",
+                                  attributes: [.foregroundColor: color])
+    }
+
+    /// F01's failure case: volume unreadable → show `—` and say why in the tooltip,
+    /// never a stale number presented as current.
+    private func renderUnreadable() {
+        if let button = statusItem?.button {
+            button.title = "💾 —"
+            button.toolTip = "DiskDrama can't read the boot volume right now."
+        }
+        freeItem?.attributedTitle = NSAttributedString(
+            string: "Free:  —", attributes: [.foregroundColor: NSColor.labelColor])
+        usedItem?.title  = "Used:  —"
+        totalItem?.title = "Total: —"
+        usageItem?.title = "Usage: —"
+        checkedItem?.title = "Last checked: failed"
+    }
+
+    // MARK: - Actions
+
+    @objc private func openStorageSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.settings.Storage") else { return }
+        NSWorkspace.shared.open(url)
+    }
+}

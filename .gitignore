@@ -1,10 +1,18 @@
-# Build output
+# Xcode build output
+DerivedData/
+build/
+*.xcuserstate
+
+# The .xcodeproj IS tracked — it carries the bundle id, entitlements, deployment
+# target and signing setup, and the build is not reproducible without it. Only
+# the per-user state inside it is ignored. (It was previously ignored wholesale,
+# from before a real project existed.)
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# v0's raw-swiftc output directory (build system removed in the Xcode migration)
 .build/
 
 # macOS
 .DS_Store
-
-# Xcode (if project is ever added)
-*.xcodeproj/
-*.xcworkspace/
-DerivedData/

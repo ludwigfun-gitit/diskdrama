@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Explicitly NOT sandboxed.
+
+	     Full Disk Access and the App Sandbox cannot coexist, and DiskDrama's
+	     entire premise is reading ~/Library. That closes the Mac App Store
+	     permanently as spec'd (preflight §Feasibility) — direct distribution,
+	     notarized and Developer ID signed, is the only path. This key is stated
+	     as false rather than omitted so the decision is visible in the file
+	     rather than inferred from its absence. -->
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+</dict>
+</plist>

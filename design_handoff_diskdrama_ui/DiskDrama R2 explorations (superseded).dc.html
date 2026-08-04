@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/bloosoftware-design-system-a67a6677-54e8-42c5-bbf1-998fad852e30/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/bloosoftware-design-system-a67a6677-54e8-42c5-bbf1-998fad852e30/tokens/colors.css">
+<link rel="stylesheet" href="_ds/bloosoftware-design-system-a67a6677-54e8-42c5-bbf1-998fad852e30/tokens/typography.css">
+<link rel="stylesheet" href="_ds/bloosoftware-design-system-a67a6677-54e8-42c5-bbf1-998fad852e30/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/bloosoftware-design-system-a67a6677-54e8-42c5-bbf1-998fad852e30/tokens/effects.css">
+<link rel="stylesheet" href="_ds/bloosoftware-design-system-a67a6677-54e8-42c5-bbf1-998fad852e30/styles.css">
+<script src="_ds/bloosoftware-design-system-a67a6677-54e8-42c5-bbf1-998fad852e30/_ds_bundle.js"></script>
+<style>
+:root{
+  --page:#E9E2D9; --page-2:#DDD3C7;
+  --desk:linear-gradient(160deg,#8E7F72 0%,#6E6157 55%,#514740 100%);
+  --w-bg:#F6F2ED; --w-chrome:#EDE7E0; --w-card:#FFFFFF; --w-card2:#FBF7F2;
+  --line:#E2D9CE; --line-2:#CEC2B4;
+  --t1:#1F1A16; --t2:#6B6058; --t3:#968C82;
+  --amber:#B96C0C; --amber-2:#8F520A; --amber-soft:rgba(185,108,12,.10); --amber-line:rgba(185,108,12,.32);
+  --sage:#3B7A55; --sage-soft:rgba(59,122,85,.10);
+  --burg:#96263A; --burg-soft:rgba(150,38,58,.09);
+  --sel:rgba(185,108,12,.13);
+  --shadow:0 28px 64px rgba(48,33,20,.26), 0 2px 8px rgba(48,33,20,.14);
+  --shadow-sm:0 1px 2px rgba(48,33,20,.10);
+  --sheet:#FFFFFF; --scrim:rgba(60,45,32,.30);
+  --track:#E0D6CA;
+}
+[data-dd="dark"]{
+  --page:#141110; --page-2:#0E0C0B;
+  --desk:linear-gradient(160deg,#3A322C 0%,#241E1A 55%,#120F0D 100%);
+  --w-bg:#232019; --w-chrome:#1A1714; --w-card:#2B261F; --w-card2:#262119;
+  --line:#3A322B; --line-2:#4A4037;
+  --t1:#F5EFE7; --t2:#A99E93; --t3:#7C7168;
+  --amber:#F0A63E; --amber-2:#FFC072; --amber-soft:rgba(240,166,62,.13); --amber-line:rgba(240,166,62,.34);
+  --sage:#5FBE86; --sage-soft:rgba(95,190,134,.13);
+  --burg:#E0596E; --burg-soft:rgba(224,89,110,.12);
+  --sel:rgba(240,166,62,.16);
+  --shadow:0 30px 70px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.4);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.35);
+  --sheet:#2A251F; --scrim:rgba(0,0,0,.5);
+  --track:#3A322B;
+}
+body{margin:0;background:var(--page);}
+a{color:var(--amber);text-decoration:none;}
+a:hover{color:var(--amber-2);text-decoration:underline;}
+</style>
+</helmet>
+
+<div data-dd="{{ theme }}" style="min-height:100%;background:var(--page);font-family:'Space Grotesk','SF Pro Display',system-ui,sans-serif;color:var(--t1);padding:56px 64px 120px;display:flex;flex-direction:column;gap:56px;">
+
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex-wrap:wrap;max-width:1600px;">
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--amber);font-weight:600;">Design round 2 · macOS</div>
+      <div style="font-size:44px;font-weight:600;letter-spacing:-0.02em;line-height:1.05;">DiskDrama</div>
+      <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:16px;line-height:1.55;color:var(--t2);max-width:640px;text-wrap:pretty;">The menubar keeps watch. The window does the reasoning. Warm amber for advice, burgundy for anything that touches your data.</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;background:var(--w-card);border:1px solid var(--line);border-radius:10px;padding:4px;box-shadow:var(--shadow-sm);">
+      <div onClick="{{ setLight }}" style="{{ lightTabStyle }}">Light</div>
+      <div onClick="{{ setDark }}" style="{{ darkTabStyle }}">Dark</div>
+    </div>
+  </div>
+
+  <section style="display:flex;flex-direction:column;gap:28px;">
+
+    <div id="1a" data-screen-label="1a Main window — recommendations" style="display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;align-items:baseline;gap:14px;">
+        <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12px;font-weight:600;background:var(--amber);color:#fff;padding:3px 9px;border-radius:6px;">1a</div>
+        <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em;">Main window — recommendations, three stacked tiers</div>
+        <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:14px;color:var(--t3);">Click a row to expand · try “Clean all 11…” and “Get me to…”</div>
+      </div>
+
+      <div style="position:relative;width:1280px;height:964px;border-radius:12px;overflow:hidden;background:var(--w-bg);border:1px solid var(--line-2);box-shadow:var(--shadow);display:flex;flex-direction:column;">
+
+        <div style="height:52px;flex:none;display:flex;align-items:center;gap:16px;padding:0 16px;background:var(--w-chrome);border-bottom:1px solid var(--line);">
+          <div style="display:flex;gap:8px;">
+            <div style="width:12px;height:12px;border-radius:50%;background:#FF5F57;"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#FEBC2E;"></div>
+            <div style="width:12px;height:12px;border-radius:50%;background:#28C840;"></div>
+          </div>
+          <div style="font-size:14px;font-weight:600;letter-spacing:-0.01em;margin-left:8px;">DiskDrama</div>
+          <div style="flex:1;"></div>
+          <div onClick="{{ openTarget }}" style="display:flex;align-items:center;gap:7px;height:28px;padding:0 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--w-card);color:var(--t1);font-size:13px;font-weight:500;cursor:pointer;box-shadow:var(--shadow-sm);" style-hover="border-color:var(--amber-line);color:var(--amber);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4"></circle></svg>
+            Get me to…
+          </div>
+          <div style="display:flex;align-items:center;gap:7px;height:28px;padding:0 13px;border-radius:8px;background:var(--amber);color:#fff;font-size:13px;font-weight:600;cursor:pointer;box-shadow:var(--shadow-sm);" style-hover="filter:brightness(1.08);" style-active="transform:scale(.985);">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
+            Scan
+          </div>
+        </div>
+
+        <div style="flex:1;display:flex;min-height:0;">
+
+          <div style="width:236px;flex:none;background:var(--w-chrome);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 10px 12px;gap:2px;">
+            <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);padding:6px 10px 8px;">Macintosh HD</div>
+
+            <div onClick="{{ goRecs }}" style="{{ navRecs }}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.4 5.3 5.6.7-4.2 3.9 1.1 5.6L12 15.8 7.1 18.5l1.1-5.6L4 9l5.6-.7z"></path></svg>
+              <span style="flex:1;">Recommendations</span>
+              <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;opacity:.75;">18</span>
+            </div>
+            <div onClick="{{ goChanges }}" style="{{ navChanges }}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0114.8-6.9L21 8"></path><path d="M21 4v4h-4"></path><path d="M21 12a9 9 0 01-14.8 6.9L3 16"></path><path d="M3 20v-4h4"></path></svg>
+              <span style="flex:1;">Changes</span>
+              <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--burg);">+3</span>
+            </div>
+            <div onClick="{{ goHistory }}" style="{{ navHistory }}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.2 1.9"></path></svg>
+              <span style="flex:1;">History</span>
+            </div>
+            <div onClick="{{ goWatching }}" style="{{ navWatching }}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"></path><circle cx="12" cy="12" r="2.6"></circle></svg>
+              <span style="flex:1;">Watching</span>
+              <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;opacity:.75;">2</span>
+            </div>
+
+            <div style="flex:1;"></div>
+
+            <div style="background:var(--w-card);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:var(--shadow-sm);">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;">
+                <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);">Where it went</div>
+                <div style="font-size:11px;color:var(--amber);cursor:pointer;font-weight:500;">Expand</div>
+              </div>
+              <div style="display:grid;grid-template-columns:1.35fr 1fr;grid-template-rows:44px 30px 26px;gap:3px;">
+                <div style="grid-row:span 2;background:var(--sel);border:1px solid var(--amber-line);border-radius:5px;padding:6px;display:flex;flex-direction:column;justify-content:flex-end;">
+                  <div style="font-size:10px;font-weight:600;color:var(--amber);line-height:1.2;">Xcode</div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:9px;color:var(--amber);opacity:.8;">31 GB</div>
+                </div>
+                <div style="background:var(--track);border-radius:5px;padding:6px;display:flex;align-items:flex-end;font-size:10px;color:var(--t2);font-weight:500;">Photos</div>
+                <div style="background:var(--track);border-radius:5px;"></div>
+                <div style="background:var(--track);border-radius:5px;"></div>
+                <div style="background:var(--track);border-radius:5px;"></div>
+                <div style="background:var(--track);border-radius:5px;"></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <div style="height:6px;border-radius:3px;background:var(--track);overflow:hidden;display:flex;">
+                  <div style="width:91.4%;background:var(--burg);"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;">
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12px;font-weight:600;color:var(--burg);">42.3 GB free</div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--t3);">of 494 GB</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex;align-items:center;gap:9px;padding:9px 10px;margin-top:6px;border-radius:7px;color:var(--t2);font-size:13px;cursor:pointer;" style-hover="background:var(--sel);color:var(--t1);">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-2.9 1.2v.2a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.6 1.7 1.7 0 00-1.9.4l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00-1.2-2.9H3a2 2 0 010-4h.1a1.7 1.7 0 001.6-1.1 1.7 1.7 0 00-.4-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 002.9 1.2l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9V9a1.7 1.7 0 001.5 1h.2a2 2 0 010 4h-.1a1.7 1.7 0 00-1.6 1z"></path></svg>
+              Settings
+            </div>
+          </div>
+
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--w-bg);">
+
+            <div style="flex:none;padding:22px 26px 16px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:24px;">
+              <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+                <div style="display:flex;align-items:baseline;gap:10px;">
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:30px;font-weight:600;letter-spacing:-0.02em;color:var(--amber);">46.1 GB</div>
+                  <div style="font-size:19px;font-weight:500;letter-spacing:-0.01em;">reclaimable, across 18 items</div>
+                </div>
+                <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:13.5px;color:var(--t2);">Scanned your home folder 3 days ago · 2 blind spots · <a href="#1a">rescan</a></div>
+              </div>
+              <div style="display:flex;gap:6px;padding-top:4px;">
+                <div style="height:26px;display:flex;align-items:center;padding:0 11px;border-radius:13px;border:1px solid var(--amber-line);background:var(--sel);color:var(--amber);font-size:12px;font-weight:600;cursor:pointer;">All tiers</div>
+                <div style="height:26px;display:flex;align-items:center;padding:0 11px;border-radius:13px;border:1px solid var(--line-2);color:var(--t2);font-size:12px;font-weight:500;cursor:pointer;" style-hover="border-color:var(--amber-line);color:var(--amber);">Snoozed · 4</div>
+                <div style="height:26px;display:flex;align-items:center;padding:0 11px;border-radius:13px;border:1px solid var(--line-2);color:var(--t2);font-size:12px;font-weight:500;cursor:pointer;" style-hover="border-color:var(--amber-line);color:var(--amber);">Blind spots · 2</div>
+              </div>
+            </div>
+
+            <div style="flex:1;overflow:hidden;padding:18px 26px 26px;display:flex;flex-direction:column;gap:22px;">
+
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="width:9px;height:9px;border-radius:50%;background:var(--sage);flex:none;"></div>
+                  <div style="font-size:15px;font-weight:600;letter-spacing:-0.01em;">Safe to delete</div>
+                  <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:13px;color:var(--t3);flex:1;">All of this regenerates on its own.</div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:13px;font-weight:600;color:var(--t2);">38.2 GB · 11 items</div>
+                  <div onClick="{{ openBatch }}" style="height:26px;display:flex;align-items:center;padding:0 12px;border-radius:7px;background:var(--sage);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:var(--shadow-sm);" style-hover="filter:brightness(1.08);" style-active="transform:scale(.985);">Clean all 11…</div>
+                </div>
+
+                <div style="border:1px solid var(--line);border-radius:10px;background:var(--w-card);overflow:hidden;box-shadow:var(--shadow-sm);">
+
+                  <div onClick="{{ toggleDerived }}" style="{{ derivedRowStyle }}">
+                    <div style="width:30px;height:30px;border-radius:7px;background:var(--sage-soft);color:var(--sage);display:flex;align-items:center;justify-content:center;flex:none;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A1.5 1.5 0 014.5 6h4l2 2.5h7A1.5 1.5 0 0119 10v7.5a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 013 17.5z"></path></svg>
+                    </div>
+                    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                      <div style="font-size:14px;font-weight:600;letter-spacing:-0.01em;">Xcode DerivedData</div>
+                      <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">~/Library/Developer/Xcode/DerivedData</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:11px;background:var(--sage-soft);color:var(--sage);font-size:11.5px;font-weight:600;flex:none;">Regenerates</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:14px;font-weight:600;width:78px;text-align:right;flex:none;">21.4 GB</div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="{{ derivedChevron }}"><path d="M9 5l7 7-7 7"></path></svg>
+                  </div>
+
+                  <sc-if value="{{ expDerived }}" hint-placeholder-val="{{ true }}">
+                    <div style="padding:4px 16px 16px 58px;background:var(--w-card2);border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:14px;">
+                      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 28px;font-family:'Epilogue',system-ui,sans-serif;">
+                        <div style="display:flex;flex-direction:column;gap:4px;">
+                          <div style="font-family:'Space Grotesk',system-ui,sans-serif;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--t3);">What this is</div>
+                          <div style="font-size:13.5px;line-height:1.55;color:var(--t1);text-wrap:pretty;">Intermediate build output for 23 Xcode projects — compiled objects, module caches, indexes. Nothing here is source code.</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:4px;">
+                          <div style="font-family:'Space Grotesk',system-ui,sans-serif;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--t3);">After you delete it</div>
+                          <div style="font-size:13.5px;line-height:1.55;color:var(--t1);text-wrap:pretty;">Xcode rebuilds it on your next build. Expect one slow clean build per project — around 2–6 minutes each for Turfs and Visuals.</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:4px;">
+                          <div style="font-family:'Space Grotesk',system-ui,sans-serif;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--t3);">Why tier 1</div>
+                          <div style="font-size:13.5px;line-height:1.55;color:var(--t1);text-wrap:pretty;">Apple documents this folder as disposable, and 19 of the 23 projects here haven't been opened in over a month.</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:6px;">
+                          <div style="font-family:'Space Grotesk',system-ui,sans-serif;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--t3);">Confidence</div>
+                          <div style="display:flex;align-items:center;gap:10px;">
+                            <div style="flex:1;max-width:150px;height:5px;border-radius:3px;background:var(--track);overflow:hidden;"><div style="width:96%;height:100%;background:var(--sage);"></div></div>
+                            <div style="font-family:'Space Grotesk',system-ui,sans-serif;font-size:13px;font-weight:600;color:var(--sage);">High</div>
+                          </div>
+                          <div style="font-size:12.5px;line-height:1.5;color:var(--t2);">You cleaned this 16 days ago. It came back.</div>
+                        </div>
+                      </div>
+
+                      <sc-if value="{{ lookInside }}" hint-placeholder-val="{{ true }}">
+                        <div style="border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--w-card);">
+                          <div style="display:flex;align-items:center;gap:12px;padding:9px 14px;border-bottom:1px solid var(--line);background:var(--w-card2);">
+                            <div style="font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);flex:1;">Biggest things inside</div>
+                            <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;color:var(--t3);">23 projects · ~1.2M files</div>
+                          </div>
+                          <div style="display:flex;align-items:center;gap:14px;padding:9px 14px;border-bottom:1px solid var(--line);cursor:pointer;" style-hover="background:var(--sel);">
+                            <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;flex:1;color:var(--t1);">Visuals-fhqwerty…/Build</div>
+                            <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12px;color:var(--t3);">last built 2d ago</div>
+                            <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;font-weight:600;width:70px;text-align:right;">7.9 GB</div>
+                          </div>
+                          <div style="display:flex;align-items:center;gap:14px;padding:9px 14px;border-bottom:1px solid var(--line);cursor:pointer;" style-hover="background:var(--sel);">
+                            <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;flex:1;color:var(--t1);">Turfs-bxzkla…/Build</div>
+                            <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12px;color:var(--t3);">last built 9d ago</div>
+                            <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;font-weight:600;width:70px;text-align:right;">5.2 GB</div>
+                          </div>
+                          <div style="display:flex;align-items:center;gap:14px;padding:9px 14px;cursor:pointer;" style-hover="background:var(--sel);">
+                            <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;flex:1;color:var(--t2);">20 more projects</div>
+                            <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12px;color:var(--t3);">none built in 30d+</div>
+                            <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;font-weight:600;width:70px;text-align:right;color:var(--t2);">8.3 GB</div>
+                          </div>
+                        </div>
+                      </sc-if>
+
+                      <div style="display:flex;align-items:center;gap:8px;">
+                        <div onClick="{{ toggleLook }}" style="height:28px;display:flex;align-items:center;gap:7px;padding:0 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--w-card);color:var(--t1);font-size:12.5px;font-weight:500;cursor:pointer;" style-hover="border-color:var(--amber-line);color:var(--amber);">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"></path><circle cx="12" cy="12" r="2.6"></circle></svg>
+                          {{ lookLabel }}
+                        </div>
+                        <div style="height:28px;display:flex;align-items:center;padding:0 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--w-card);color:var(--t1);font-size:12.5px;font-weight:500;cursor:pointer;" style-hover="border-color:var(--amber-line);color:var(--amber);">Reveal in Finder</div>
+                        <div style="height:28px;display:flex;align-items:center;padding:0 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--w-card);color:var(--t1);font-size:12.5px;font-weight:500;cursor:pointer;" style-hover="border-color:var(--amber-line);color:var(--amber);">Watch this</div>
+                        <div style="height:28px;display:flex;align-items:center;padding:0 12px;border-radius:8px;color:var(--t2);font-size:12.5px;font-weight:500;cursor:pointer;" style-hover="color:var(--t1);background:var(--sel);">Not now</div>
+                        <div style="flex:1;"></div>
+                        <div onClick="{{ openDelete }}" style="height:28px;display:flex;align-items:center;padding:0 14px;border-radius:8px;background:var(--burg);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;box-shadow:var(--shadow-sm);" style-hover="filter:brightness(1.1);" style-active="transform:scale(.985);">Delete 21.4 GB…</div>
+                      </div>
+                    </div>
+                  </sc-if>
+
+                  <div style="display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid var(--line);cursor:pointer;" style-hover="background:var(--sel);">
+                    <div style="width:30px;height:30px;border-radius:7px;background:var(--sage-soft);color:var(--sage);display:flex;align-items:center;justify-content:center;flex:none;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A1.5 1.5 0 014.5 6h4l2 2.5h7A1.5 1.5 0 0119 10v7.5a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 013 17.5z"></path></svg>
+                    </div>
+                    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                      <div style="font-size:14px;font-weight:600;letter-spacing:-0.01em;">Turfs build output</div>
+                      <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;color:var(--t3);">~/Projects/Turfs/build</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:11px;background:var(--amber-soft);color:var(--amber);font-size:11.5px;font-weight:600;flex:none;">Watched · regrew</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:14px;font-weight:600;width:78px;text-align:right;flex:none;">9.8 GB</div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg>
+                  </div>
+
+                  <div style="display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid var(--line);cursor:pointer;" style-hover="background:var(--sel);">
+                    <div style="width:30px;height:30px;border-radius:7px;background:var(--sage-soft);color:var(--sage);display:flex;align-items:center;justify-content:center;flex:none;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A1.5 1.5 0 014.5 6h4l2 2.5h7A1.5 1.5 0 0119 10v7.5a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 013 17.5z"></path></svg>
+                    </div>
+                    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                      <div style="font-size:14px;font-weight:600;letter-spacing:-0.01em;">node_modules · 14 projects</div>
+                      <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;color:var(--t3);">~/Projects/**/node_modules</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:11px;background:var(--sage-soft);color:var(--sage);font-size:11.5px;font-weight:600;flex:none;">Reinstallable</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:14px;font-weight:600;width:78px;text-align:right;flex:none;">3.9 GB</div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg>
+                  </div>
+
+                  <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;color:var(--t2);font-size:12.5px;cursor:pointer;" style-hover="background:var(--sel);color:var(--amber);">
+                    <div style="width:30px;text-align:center;font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--t3);">+8</div>
+                    <div style="flex:1;">Show 8 more safe items</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;font-weight:600;">3.1 GB</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="width:9px;height:9px;border-radius:50%;background:var(--amber);flex:none;"></div>
+                  <div style="font-size:15px;font-weight:600;letter-spacing:-0.01em;">App-managed</div>
+                  <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:13px;color:var(--t3);flex:1;">Clear these from the app that owns them — I won't reach in.</div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:13px;font-weight:600;color:var(--t2);">21.8 GB · 3 items</div>
+                </div>
+                <div style="border:1px solid var(--line);border-radius:10px;background:var(--w-card);overflow:hidden;box-shadow:var(--shadow-sm);">
+                  <div style="display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid var(--line);cursor:pointer;" style-hover="background:var(--sel);">
+                    <div style="width:30px;height:30px;border-radius:7px;background:var(--amber-soft);color:var(--amber);display:flex;align-items:center;justify-content:center;flex:none;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"></rect><path d="M8 21h8"></path></svg>
+                    </div>
+                    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                      <div style="font-size:14px;font-weight:600;letter-spacing:-0.01em;">DaVinci Resolve render cache</div>
+                      <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;color:var(--t2);">Resolve → Project Settings → Delete render cache</div>
+                    </div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:14px;font-weight:600;width:78px;text-align:right;flex:none;">12.1 GB</div>
+                    <div style="height:26px;display:flex;align-items:center;gap:6px;padding:0 11px;border-radius:7px;border:1px solid var(--line-2);color:var(--t1);font-size:12.5px;font-weight:500;flex:none;" style-hover="border-color:var(--amber-line);color:var(--amber);">
+                      Open Resolve
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"></path><path d="M20 4l-9 9"></path><path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"></path></svg>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:14px;padding:11px 16px;cursor:pointer;" style-hover="background:var(--sel);">
+                    <div style="width:30px;height:30px;border-radius:7px;background:var(--amber-soft);color:var(--amber);display:flex;align-items:center;justify-content:center;flex:none;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 019 9"></path><path d="M12 7a5 5 0 015 5"></path><circle cx="12" cy="12" r="1.6"></circle><path d="M10.6 21l1.4-6 1.4 6z"></path></svg>
+                    </div>
+                    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                      <div style="font-size:14px;font-weight:600;letter-spacing:-0.01em;">Podcasts downloads · 212 episodes</div>
+                      <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;color:var(--t2);">Podcasts → Settings → Downloads. 194 are already played.</div>
+                    </div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:14px;font-weight:600;width:78px;text-align:right;flex:none;">6.4 GB</div>
+                    <div style="height:26px;display:flex;align-items:center;gap:6px;padding:0 11px;border-radius:7px;border:1px solid var(--line-2);color:var(--t1);font-size:12.5px;font-weight:500;flex:none;" style-hover="border-color:var(--amber-line);color:var(--amber);">
+                      Open Podcasts
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"></path><path d="M20 4l-9 9"></path><path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"></path></svg>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="width:9px;height:9px;border-radius:50%;background:var(--burg);flex:none;"></div>
+                  <div style="font-size:15px;font-weight:600;letter-spacing:-0.01em;">Your data — review first</div>
+                  <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:13px;color:var(--t3);flex:1;">One at a time. No batch button here, by design.</div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:13px;font-weight:600;color:var(--t2);">37.6 GB · 4 items</div>
+                </div>
+                <div style="border:1px solid var(--line);border-radius:10px;background:var(--w-card);overflow:hidden;box-shadow:var(--shadow-sm);">
+                  <div style="display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid var(--line);cursor:pointer;" style-hover="background:var(--sel);">
+                    <div style="width:30px;height:30px;border-radius:7px;background:var(--burg-soft);color:var(--burg);display:flex;align-items:center;justify-content:center;flex:none;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"></path><path d="M4 9h16"></path><path d="M8 5v4"></path><path d="M16 5v4"></path></svg>
+                    </div>
+                    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                      <div style="font-size:14px;font-weight:600;letter-spacing:-0.01em;">Docker.raw</div>
+                      <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;color:var(--t2);">Container images and volumes. Some may hold data you never pushed anywhere.</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:11px;background:var(--burg-soft);color:var(--burg);font-size:11.5px;font-weight:600;flex:none;">Check before deleting</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:14px;font-weight:600;width:78px;text-align:right;flex:none;">22.0 GB</div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:14px;padding:11px 16px;cursor:pointer;" style-hover="background:var(--sel);">
+                    <div style="width:30px;height:30px;border-radius:7px;background:var(--burg-soft);color:var(--burg);display:flex;align-items:center;justify-content:center;flex:none;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M10 9.5l5 2.5-5 2.5z"></path></svg>
+                    </div>
+                    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                      <div style="font-size:14px;font-weight:600;letter-spacing:-0.01em;">Screen Recordings · 61 files</div>
+                      <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;color:var(--t2);">I can't tell what's in these. Newest is from March — preview before deciding.</div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;height:22px;padding:0 9px;border-radius:11px;background:var(--burg-soft);color:var(--burg);font-size:11.5px;font-weight:600;flex:none;">Unknown contents</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:14px;font-weight:600;width:78px;text-align:right;flex:none;">14.7 GB</div>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg>
+                  </div>
+                </div>
+                <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;color:var(--t3);padding:2px 2px 0;">Not on this list: your Photos library (26 GB). That's your photos — I'd leave it alone.</div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <sc-if value="{{ sheetBatch }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;background:var(--scrim);backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;padding-top:52px;">
+            <div style="width:560px;background:var(--sheet);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;">
+              <div style="padding:22px 24px 0;display:flex;flex-direction:column;gap:8px;">
+                <div style="font-size:17px;font-weight:600;letter-spacing:-0.01em;">Clean all 11 safe items?</div>
+                <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:13.5px;line-height:1.55;color:var(--t2);text-wrap:pretty;">Everything below regenerates on its own. Uncheck anything you'd rather keep.</div>
+              </div>
+              <div style="margin:16px 24px 0;border:1px solid var(--line);border-radius:9px;overflow:hidden;">
+                <div onClick="{{ toggleTrash }}" style="display:flex;align-items:flex-start;gap:11px;padding:13px 14px;background:var(--sel);border-bottom:1px solid var(--line);cursor:pointer;">
+                  <div style="{{ trashBoxStyle }}">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" style="{{ trashCheckStyle }}"><path d="M4 12.5l5 5L20 6.5"></path></svg>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:3px;">
+                    <div style="font-size:13.5px;font-weight:600;">Move to Trash</div>
+                    <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;line-height:1.5;color:var(--t2);">{{ trashConsequence }}</div>
+                  </div>
+                </div>
+                <div style="max-height:216px;overflow:auto;">
+                  <div style="display:flex;align-items:center;gap:11px;padding:9px 14px;border-bottom:1px solid var(--line);">
+                    <div style="width:16px;height:16px;border-radius:4px;background:var(--sage);display:flex;align-items:center;justify-content:center;flex:none;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg></div>
+                    <div style="flex:1;font-size:13px;">Xcode DerivedData</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;font-weight:600;">21.4 GB</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:11px;padding:9px 14px;border-bottom:1px solid var(--line);">
+                    <div style="width:16px;height:16px;border-radius:4px;background:var(--sage);display:flex;align-items:center;justify-content:center;flex:none;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg></div>
+                    <div style="flex:1;font-size:13px;">Turfs build output</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;font-weight:600;">9.8 GB</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:11px;padding:9px 14px;border-bottom:1px solid var(--line);">
+                    <div style="width:16px;height:16px;border-radius:4px;background:var(--sage);display:flex;align-items:center;justify-content:center;flex:none;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg></div>
+                    <div style="flex:1;font-size:13px;">node_modules · 14 projects</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;font-weight:600;">3.9 GB</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:11px;padding:9px 14px;border-bottom:1px solid var(--line);">
+                    <div style="width:16px;height:16px;border-radius:4px;background:var(--sage);display:flex;align-items:center;justify-content:center;flex:none;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg></div>
+                    <div style="flex:1;font-size:13px;">Homebrew cache</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;font-weight:600;">2.0 GB</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:11px;padding:9px 14px;">
+                    <div style="width:16px;height:16px;border-radius:4px;background:var(--sage);display:flex;align-items:center;justify-content:center;flex:none;"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg></div>
+                    <div style="flex:1;font-size:13px;color:var(--t2);">7 smaller caches</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12.5px;font-weight:600;color:var(--t2);">1.1 GB</div>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px 0;">
+                <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:13px;color:var(--t2);">11 of 11 selected</div>
+                <div style="display:flex;align-items:baseline;gap:8px;"><span style="font-size:13px;color:var(--t2);">Total</span><span style="font-family:ui-monospace,'SF Mono',monospace;font-size:19px;font-weight:600;color:var(--sage);">38.2 GB</span></div>
+              </div>
+              <div style="display:flex;justify-content:flex-end;gap:9px;padding:18px 24px 20px;">
+                <div onClick="{{ closeSheet }}" style="height:32px;display:flex;align-items:center;padding:0 16px;border-radius:8px;border:1px solid var(--line-2);background:var(--w-card);font-size:13.5px;font-weight:500;cursor:pointer;" style-hover="border-color:var(--line-2);background:var(--sel);">Cancel</div>
+                <div onClick="{{ closeSheet }}" style="height:32px;display:flex;align-items:center;padding:0 18px;border-radius:8px;background:var(--sage);color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;box-shadow:var(--shadow-sm);" style-hover="filter:brightness(1.08);" style-active="transform:scale(.985);">Clean 11 items</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ sheetDelete }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;background:var(--scrim);backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;padding-top:52px;">
+            <div style="width:520px;background:var(--sheet);border-radius:12px;box-shadow:var(--shadow);padding:24px;display:flex;flex-direction:column;gap:14px;">
+              <div style="display:flex;gap:14px;">
+                <div style="width:38px;height:38px;border-radius:9px;background:var(--burg-soft);color:var(--burg);display:flex;align-items:center;justify-content:center;flex:none;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M9 7V5h6v2"></path><path d="M6 7l1 13h10l1-13"></path></svg>
+                </div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:7px;">
+                  <div style="font-size:16.5px;font-weight:600;letter-spacing:-0.01em;">Delete Xcode DerivedData?</div>
+                  <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:13.5px;line-height:1.6;color:var(--t2);text-wrap:pretty;">21.4 GB across 23 project folders. Xcode rebuilds this on your next build — one slow clean build per project, no source code is touched.</div>
+                </div>
+              </div>
+              <div onClick="{{ toggleTrash }}" style="display:flex;align-items:flex-start;gap:11px;padding:13px 14px;background:var(--sel);border:1px solid var(--amber-line);border-radius:9px;cursor:pointer;">
+                <div style="{{ trashBoxStyle }}">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" style="{{ trashCheckStyle }}"><path d="M4 12.5l5 5L20 6.5"></path></svg>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:3px;">
+                  <div style="font-size:13.5px;font-weight:600;">Move to Trash</div>
+                  <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;line-height:1.5;color:var(--t2);">{{ trashConsequence }}</div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:flex-end;gap:9px;padding-top:2px;">
+                <div onClick="{{ closeSheet }}" style="height:32px;display:flex;align-items:center;padding:0 16px;border-radius:8px;border:1px solid var(--line-2);background:var(--w-card);font-size:13.5px;font-weight:500;cursor:pointer;" style-hover="background:var(--sel);">Cancel</div>
+                <div onClick="{{ closeSheet }}" style="height:32px;display:flex;align-items:center;padding:0 18px;border-radius:8px;background:var(--burg);color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;box-shadow:var(--shadow-sm);" style-hover="filter:brightness(1.1);" style-active="transform:scale(.985);">{{ deleteLabel }}</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ sheetTarget }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;inset:0;background:var(--scrim);backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;padding-top:52px;">
+            <div style="width:600px;background:var(--sheet);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;">
+              <div style="padding:22px 24px 16px;display:flex;flex-direction:column;gap:14px;border-bottom:1px solid var(--line);">
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="font-size:17px;font-weight:600;letter-spacing:-0.01em;">Get me to</div>
+                  <div style="display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--amber-line);background:var(--sel);">
+                    <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:15px;font-weight:600;color:var(--amber);">120</span>
+                    <span style="font-size:13px;color:var(--amber);">GB free</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:7px;">
+                  <div style="height:8px;border-radius:4px;background:var(--track);overflow:hidden;display:flex;">
+                    <div style="width:35%;background:var(--t3);"></div>
+                    <div style="width:32%;background:var(--sage);"></div>
+                    <div style="width:6%;background:var(--burg);"></div>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;font-family:'Epilogue',system-ui,sans-serif;font-size:13px;color:var(--t2);">
+                    <div>42.3 GB free now · <span style="color:var(--sage);font-weight:600;">+38.2 GB safe</span> · <span style="color:var(--burg);font-weight:600;">+7.3 GB reviewed</span></div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-weight:600;color:var(--t1);">87.8 / 120 GB</div>
+                  </div>
+                </div>
+              </div>
+              <div style="padding:16px 24px;display:flex;flex-direction:column;gap:12px;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <div style="width:8px;height:8px;border-radius:50%;background:var(--sage);"></div>
+                  <div style="font-size:13.5px;font-weight:600;flex:1;">Start with everything safe</div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:13px;font-weight:600;color:var(--sage);">+38.2 GB</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <div style="width:8px;height:8px;border-radius:50%;background:var(--amber);"></div>
+                  <div style="font-size:13.5px;font-weight:600;flex:1;">Then clear the Resolve cache yourself</div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:13px;font-weight:600;color:var(--amber);">+12.1 GB</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <div style="width:8px;height:8px;border-radius:50%;background:var(--burg);"></div>
+                  <div style="font-size:13.5px;font-weight:600;flex:1;">Reviewed by you: 61 screen recordings</div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:13px;font-weight:600;color:var(--burg);">+14.7 GB</div>
+                </div>
+                <div style="margin-top:4px;padding:13px 14px;border-radius:9px;background:var(--burg-soft);border:1px solid var(--burg);display:flex;gap:11px;">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--burg)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px;"><path d="M12 4l9 16H3z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>
+                  <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:13px;line-height:1.55;color:var(--t1);text-wrap:pretty;"><strong style="font-family:'Space Grotesk',system-ui,sans-serif;">120 GB isn't reachable</strong> — even taking everything I'd advise, you land at 87.8 GB. The gap is your Photos library (26 GB) and Music (14 GB), and I'm not going to suggest you delete either.</div>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:flex-end;gap:9px;padding:4px 24px 20px;">
+                <div onClick="{{ closeSheet }}" style="height:32px;display:flex;align-items:center;padding:0 16px;border-radius:8px;border:1px solid var(--line-2);background:var(--w-card);font-size:13.5px;font-weight:500;cursor:pointer;" style-hover="background:var(--sel);">Cancel</div>
+                <div onClick="{{ closeSheet }}" style="height:32px;display:flex;align-items:center;padding:0 18px;border-radius:8px;background:var(--amber);color:#fff;font-size:13.5px;font-weight:600;cursor:pointer;box-shadow:var(--shadow-sm);" style-hover="filter:brightness(1.08);" style-active="transform:scale(.985);">Run this plan — 87.8 GB</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+
+    <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;">
+
+      <div id="1b" data-screen-label="1b Recommendations variation — sidebar tiers" style="display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;align-items:baseline;gap:12px;">
+          <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12px;font-weight:600;background:var(--amber);color:#fff;padding:3px 9px;border-radius:6px;">1b</div>
+          <div style="font-size:18px;font-weight:600;letter-spacing:-0.01em;">Variation — tier in the sidebar, detail on the right</div>
+        </div>
+        <div style="width:840px;height:520px;border-radius:12px;overflow:hidden;background:var(--w-bg);border:1px solid var(--line-2);box-shadow:var(--shadow);display:flex;flex-direction:column;">
+          <div style="height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 14px;background:var(--w-chrome);border-bottom:1px solid var(--line);">
+            <div style="width:11px;height:11px;border-radius:50%;background:#FF5F57;"></div>
+            <div style="width:11px;height:11px;border-radius:50%;background:#FEBC2E;"></div>
+            <div style="width:11px;height:11px;border-radius:50%;background:#28C840;"></div>
+            <div style="font-size:13px;font-weight:600;margin-left:8px;">DiskDrama</div>
+          </div>
+          <div style="flex:1;display:flex;min-height:0;">
+            <div style="width:250px;flex:none;background:var(--w-chrome);border-right:1px solid var(--line);padding:12px 9px;display:flex;flex-direction:column;gap:3px;">
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:8px;background:var(--sel);border:1px solid var(--amber-line);">
+                <div style="width:8px;height:8px;border-radius:50%;background:var(--sage);"></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:1px;">
+                  <div style="font-size:13.5px;font-weight:600;">Safe to delete</div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--t3);">11 items</div>
+                </div>
+                <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:13px;font-weight:600;color:var(--sage);">38.2 GB</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:8px;cursor:pointer;" style-hover="background:var(--sel);">
+                <div style="width:8px;height:8px;border-radius:50%;background:var(--amber);"></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:1px;">
+                  <div style="font-size:13.5px;font-weight:600;">App-managed</div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--t3);">3 items</div>
+                </div>
+                <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:13px;font-weight:600;color:var(--amber);">21.8 GB</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:8px;cursor:pointer;" style-hover="background:var(--sel);">
+                <div style="width:8px;height:8px;border-radius:50%;background:var(--burg);"></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:1px;">
+                  <div style="font-size:13.5px;font-weight:600;">Review first</div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--t3);">4 items</div>
+                </div>
+                <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:13px;font-weight:600;color:var(--burg);">37.6 GB</div>
+              </div>
+              <div style="height:1px;background:var(--line);margin:8px 4px;"></div>
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:7px;font-size:13px;color:var(--t2);cursor:pointer;" style-hover="background:var(--sel);">Changes</div>
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:7px;font-size:13px;color:var(--t2);cursor:pointer;" style-hover="background:var(--sel);">History</div>
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+              <div style="padding:16px 20px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;">
+                <div style="flex:1;display:flex;flex-direction:column;gap:3px;">
+                  <div style="font-size:15px;font-weight:600;">Safe to delete</div>
+                  <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;color:var(--t2);">All of this regenerates on its own.</div>
+                </div>
+                <div style="height:26px;display:flex;align-items:center;padding:0 12px;border-radius:7px;background:var(--sage);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;">Clean all 11…</div>
+              </div>
+              <div style="flex:1;overflow:hidden;padding:8px 12px;display:flex;flex-direction:column;">
+                <div style="display:flex;align-items:center;gap:12px;padding:10px 10px;border-radius:8px;background:var(--sel);">
+                  <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+                    <div style="font-size:13.5px;font-weight:600;">Xcode DerivedData</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--t3);">~/Library/Developer/Xcode/DerivedData</div>
+                  </div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:13.5px;font-weight:600;">21.4 GB</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;padding:10px;">
+                  <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+                    <div style="font-size:13.5px;font-weight:600;">Turfs build output</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--t3);">~/Projects/Turfs/build</div>
+                  </div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:13.5px;font-weight:600;">9.8 GB</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;padding:10px;">
+                  <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+                    <div style="font-size:13.5px;font-weight:600;">node_modules · 14 projects</div>
+                    <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--t3);">~/Projects/**/node_modules</div>
+                  </div>
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:13.5px;font-weight:600;">3.9 GB</div>
+                </div>
+                <div style="flex:1;"></div>
+                <div style="border-top:1px solid var(--line);padding:14px 10px 10px;display:flex;flex-direction:column;gap:6px;">
+                  <div style="font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--t3);">Xcode DerivedData</div>
+                  <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:13px;line-height:1.55;color:var(--t1);text-wrap:pretty;">Build output for 23 projects. Xcode rebuilds it next time you build — one slow clean build per project. You cleaned this 16 days ago.</div>
+                  <div style="display:flex;gap:8px;padding-top:6px;">
+                    <div style="height:27px;display:flex;align-items:center;padding:0 11px;border-radius:7px;border:1px solid var(--line-2);font-size:12.5px;cursor:pointer;">Look inside</div>
+                    <div style="height:27px;display:flex;align-items:center;padding:0 11px;border-radius:7px;border:1px solid var(--line-2);font-size:12.5px;cursor:pointer;">Reveal</div>
+                    <div style="flex:1;"></div>
+                    <div style="height:27px;display:flex;align-items:center;padding:0 13px;border-radius:7px;background:var(--burg);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;">Delete 21.4 GB…</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="1c" data-screen-label="1c Recommendations variation — one ranked list" style="display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;align-items:baseline;gap:12px;">
+          <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12px;font-weight:600;background:var(--amber);color:#fff;padding:3px 9px;border-radius:6px;">1c</div>
+          <div style="font-size:18px;font-weight:600;letter-spacing:-0.01em;">Variation — one ranked list, risk on each row</div>
+        </div>
+        <div style="width:660px;height:520px;border-radius:12px;overflow:hidden;background:var(--w-bg);border:1px solid var(--line-2);box-shadow:var(--shadow);display:flex;flex-direction:column;">
+          <div style="height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 14px;background:var(--w-chrome);border-bottom:1px solid var(--line);">
+            <div style="width:11px;height:11px;border-radius:50%;background:#FF5F57;"></div>
+            <div style="width:11px;height:11px;border-radius:50%;background:#FEBC2E;"></div>
+            <div style="width:11px;height:11px;border-radius:50%;background:#28C840;"></div>
+            <div style="font-size:13px;font-weight:600;margin-left:8px;">DiskDrama</div>
+          </div>
+          <div style="padding:16px 20px 12px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:9px;">
+            <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:24px;font-weight:600;color:var(--amber);letter-spacing:-0.02em;">46.1 GB</div>
+            <div style="font-size:15px;font-weight:500;">reclaimable · biggest first</div>
+          </div>
+          <div style="flex:1;overflow:hidden;">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);cursor:pointer;" style-hover="background:var(--sel);">
+              <div style="width:3px;height:34px;border-radius:2px;background:var(--burg);flex:none;"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+                <div style="font-size:14px;font-weight:600;">Docker.raw</div>
+                <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;color:var(--t2);">Review first — may hold data you never pushed</div>
+              </div>
+              <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:14px;font-weight:600;">22.0 GB</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);cursor:pointer;" style-hover="background:var(--sel);">
+              <div style="width:3px;height:34px;border-radius:2px;background:var(--sage);flex:none;"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+                <div style="font-size:14px;font-weight:600;">Xcode DerivedData</div>
+                <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;color:var(--t2);">Safe — regenerates on your next build</div>
+              </div>
+              <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:14px;font-weight:600;">21.4 GB</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);cursor:pointer;" style-hover="background:var(--sel);">
+              <div style="width:3px;height:34px;border-radius:2px;background:var(--burg);flex:none;"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+                <div style="font-size:14px;font-weight:600;">Screen Recordings · 61 files</div>
+                <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;color:var(--t2);">Review first — I can't tell what's in these</div>
+              </div>
+              <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:14px;font-weight:600;">14.7 GB</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);cursor:pointer;" style-hover="background:var(--sel);">
+              <div style="width:3px;height:34px;border-radius:2px;background:var(--amber);flex:none;"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+                <div style="font-size:14px;font-weight:600;">DaVinci Resolve render cache</div>
+                <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;color:var(--t2);">Clear from Resolve — I won't reach in</div>
+              </div>
+              <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:14px;font-weight:600;">12.1 GB</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);cursor:pointer;" style-hover="background:var(--sel);">
+              <div style="width:3px;height:34px;border-radius:2px;background:var(--sage);flex:none;"></div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:2px;">
+                <div style="font-size:14px;font-weight:600;">Turfs build output</div>
+                <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;color:var(--t2);">Safe — and it's back again, 16 days later</div>
+              </div>
+              <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:14px;font-weight:600;">9.8 GB</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;cursor:pointer;color:var(--t2);" style-hover="background:var(--sel);">
+              <div style="width:3px;height:34px;border-radius:2px;background:var(--line-2);flex:none;"></div>
+              <div style="flex:1;font-size:13.5px;">13 more items</div>
+              <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:14px;font-weight:600;">12.7 GB</div>
+            </div>
+          </div>
+          <div style="padding:12px 20px;border-top:1px solid var(--line);background:var(--w-chrome);font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;color:var(--t2);">Ranked by size, coloured by risk. The tier is a property of the row, not a section.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1d" data-screen-label="1d A09 — menubar dropdown vs popover advisor" style="display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;align-items:baseline;gap:12px;">
+        <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12px;font-weight:600;background:var(--amber);color:#fff;padding:3px 9px;border-radius:6px;">1d</div>
+        <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em;">A09 — the ambient monitor vs. the advisor in a popover</div>
+        <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:14px;color:var(--t3);">Left: dropdown as gateway. Right: the whole advisor crammed into 420px.</div>
+      </div>
+      <div style="display:flex;gap:24px;align-items:flex-start;">
+
+        <div style="width:640px;border-radius:12px;overflow:hidden;background:var(--desk);padding:0 0 44px;box-shadow:var(--shadow);">
+          <div style="height:26px;display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:0 14px;background:rgba(20,16,13,.42);backdrop-filter:blur(12px);">
+            <div style="display:flex;align-items:center;gap:5px;color:#fff;font-size:12px;font-weight:600;background:rgba(255,255,255,.16);padding:2px 7px;border-radius:5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFB454" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"></rect><path d="M7 18v-4h10v4"></path></svg>
+              <span style="font-family:ui-monospace,'SF Mono',monospace;">42.3 GB</span>
+            </div>
+            <div style="color:rgba(255,255,255,.8);font-size:11.5px;font-family:ui-monospace,'SF Mono',monospace;">Sun 14:08</div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;padding:8px 12px 0;">
+            <div style="width:344px;border-radius:11px;background:var(--w-chrome);border:1px solid var(--line);box-shadow:var(--shadow);overflow:hidden;">
+              <div style="padding:14px 15px 12px;display:flex;flex-direction:column;gap:11px;border-bottom:1px solid var(--line);">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;">
+                  <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:22px;font-weight:600;color:var(--burg);letter-spacing:-0.02em;">42.3 GB</div>
+                  <div style="font-size:12.5px;color:var(--t2);">free of 494 GB</div>
+                </div>
+                <div style="height:6px;border-radius:3px;background:var(--track);overflow:hidden;"><div style="width:91.4%;height:100%;background:var(--burg);"></div></div>
+                <div style="display:flex;justify-content:space-between;font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;color:var(--t3);">
+                  <span>451.7 GB used · 91%</span><span>checked 40s ago</span>
+                </div>
+              </div>
+              <div style="padding:12px 15px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:4px;background:var(--sel);">
+                <div style="font-size:13px;font-weight:600;color:var(--amber);">46.1 GB reclaimable</div>
+                <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:12.5px;color:var(--t2);line-height:1.5;">Last scan 3d ago. Biggest: Xcode DerivedData, 21.4 GB.</div>
+              </div>
+              <div style="padding:6px;display:flex;flex-direction:column;">
+                <div style="display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:6px;font-size:13px;cursor:pointer;" style-hover="background:var(--amber);color:#fff;">
+                  <span style="flex:1;">Open DiskDrama</span><span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;opacity:.6;">⌘O</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:6px;font-size:13px;cursor:pointer;" style-hover="background:var(--amber);color:#fff;">
+                  <span style="flex:1;">Scan now</span><span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;opacity:.6;">⌘S</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:6px;font-size:13px;cursor:pointer;" style-hover="background:var(--amber);color:#fff;">
+                  <span style="flex:1;">Refresh</span><span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;opacity:.6;">⌘R</span>
+                </div>
+                <div style="height:1px;background:var(--line);margin:5px 9px;"></div>
+                <div style="display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:6px;font-size:13px;color:var(--t2);cursor:pointer;" style-hover="background:var(--amber);color:#fff;">
+                  <span style="flex:1;">Settings…</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:6px;font-size:13px;color:var(--t2);cursor:pointer;" style-hover="background:var(--amber);color:#fff;">
+                  <span style="flex:1;">Quit DiskDrama</span><span style="font-family:ui-monospace,'SF Mono',monospace;font-size:11.5px;opacity:.6;">⌘Q</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:16px 16px 0;color:rgba(255,255,255,.9);font-family:'Epilogue',system-ui,sans-serif;font-size:13px;line-height:1.5;max-width:280px;">The dropdown stays ambient: numbers, one headline, four ways out. Nothing you have to read.</div>
+        </div>
+
+        <div style="width:460px;border-radius:12px;overflow:hidden;background:var(--desk);padding:0 0 44px;box-shadow:var(--shadow);">
+          <div style="height:26px;display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:0 14px;background:rgba(20,16,13,.42);backdrop-filter:blur(12px);">
+            <div style="display:flex;align-items:center;gap:5px;color:#fff;font-size:12px;font-weight:600;background:rgba(255,255,255,.16);padding:2px 7px;border-radius:5px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FFB454" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"></rect><path d="M7 18v-4h10v4"></path></svg>
+              <span style="font-family:ui-monospace,'SF Mono',monospace;">42.3 GB</span>
+            </div>
+            <div style="color:rgba(255,255,255,.8);font-size:11.5px;font-family:ui-monospace,'SF Mono',monospace;">Sun 14:08</div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;padding:8px 12px 0;">
+            <div style="width:420px;border-radius:11px;background:var(--w-bg);border:1px solid var(--line);box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;">
+              <div style="padding:12px 14px;border-bottom:1px solid var(--line);background:var(--w-chrome);display:flex;align-items:baseline;gap:8px;">
+                <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:18px;font-weight:600;color:var(--amber);">46.1 GB</div>
+                <div style="font-size:13px;flex:1;">reclaimable</div>
+                <div style="font-size:12px;color:var(--t3);font-family:ui-monospace,'SF Mono',monospace;">42.3 free</div>
+              </div>
+              <div style="padding:8px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--sage);">Safe · 38.2 GB</div>
+              <div style="display:flex;align-items:center;gap:9px;padding:7px 12px;">
+                <div style="flex:1;min-width:0;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Xcode DerivedData</div>
+                <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12px;font-weight:600;">21.4 GB</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:9px;padding:7px 12px;">
+                <div style="flex:1;min-width:0;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Turfs build output</div>
+                <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12px;font-weight:600;">9.8 GB</div>
+              </div>
+              <div style="padding:8px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--amber);">App-managed · 21.8 GB</div>
+              <div style="display:flex;align-items:center;gap:9px;padding:7px 12px;">
+                <div style="flex:1;min-width:0;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Resolve render cache</div>
+                <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12px;font-weight:600;">12.1 GB</div>
+              </div>
+              <div style="padding:8px 10px 4px;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--burg);">Review first · 37.6 GB</div>
+              <div style="display:flex;align-items:center;gap:9px;padding:7px 12px 10px;">
+                <div style="flex:1;min-width:0;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Docker.raw</div>
+                <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12px;font-weight:600;">22.0 GB</div>
+              </div>
+              <div style="padding:10px 12px;border-top:1px solid var(--line);background:var(--burg-soft);font-family:'Epilogue',system-ui,sans-serif;font-size:12px;line-height:1.5;color:var(--t1);">The explanation, the preview, the delta view and the log have nowhere to go here — and the popover closes the moment you click Finder to check something.</div>
+            </div>
+          </div>
+          <div style="padding:16px 16px 0;color:rgba(255,255,255,.9);font-family:'Epilogue',system-ui,sans-serif;font-size:13px;line-height:1.5;max-width:300px;">Recommendation: keep the window. The popover can hold a list, but not a reason.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="1e" data-screen-label="1e First launch — Full Disk Access" style="display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;align-items:baseline;gap:12px;">
+        <div style="font-family:ui-monospace,'SF Mono',monospace;font-size:12px;font-weight:600;background:var(--amber);color:#fff;padding:3px 9px;border-radius:6px;">1e</div>
+        <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em;">First launch — Full Disk Access</div>
+      </div>
+      <div style="width:720px;border-radius:12px;overflow:hidden;background:var(--w-bg);border:1px solid var(--line-2);box-shadow:var(--shadow);">
+        <div style="height:44px;display:flex;align-items:center;gap:8px;padding:0 14px;background:var(--w-chrome);border-bottom:1px solid var(--line);">
+          <div style="width:11px;height:11px;border-radius:50%;background:#FF5F57;"></div>
+          <div style="width:11px;height:11px;border-radius:50%;background:#FEBC2E;"></div>
+          <div style="width:11px;height:11px;border-radius:50%;background:#28C840;"></div>
+        </div>
+        <div style="padding:38px 44px 34px;display:flex;flex-direction:column;gap:26px;">
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--amber);">Step 2 of 3</div>
+            <div style="font-size:28px;font-weight:600;letter-spacing:-0.02em;line-height:1.15;">Let me see the whole picture</div>
+            <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:15px;line-height:1.6;color:var(--t2);max-width:520px;text-wrap:pretty;">Most of the space you can actually get back hides in <span style="font-family:ui-monospace,'SF Mono',monospace;font-size:13.5px;">~/Library</span>. Without Full Disk Access I'll still work — I'll just tell you what I couldn't see instead of guessing.</div>
+          </div>
+
+          <div style="display:flex;gap:14px;">
+            <div style="flex:1;padding:16px;border-radius:11px;border:1px solid var(--line);background:var(--w-card);display:flex;flex-direction:column;gap:7px;box-shadow:var(--shadow-sm);">
+              <div style="display:flex;align-items:center;gap:8px;color:var(--sage);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.4l2.6 2.6L16 9.6"></path></svg>
+                <div style="font-size:13.5px;font-weight:600;">What I do</div>
+              </div>
+              <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:13px;line-height:1.55;color:var(--t2);">Read file sizes. Locally. Nothing leaves this Mac, and there's no account to make.</div>
+            </div>
+            <div style="flex:1;padding:16px;border-radius:11px;border:1px solid var(--line);background:var(--w-card);display:flex;flex-direction:column;gap:7px;box-shadow:var(--shadow-sm);">
+              <div style="display:flex;align-items:center;gap:8px;color:var(--burg);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M15 9l-6 6"></path><path d="M9 9l6 6"></path></svg>
+                <div style="font-size:13.5px;font-weight:600;">What I never do</div>
+              </div>
+              <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:13px;line-height:1.55;color:var(--t2);">Delete anything you didn't ask me to delete. Not on a schedule, not automatically, not ever.</div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:14px;padding:15px 18px;border-radius:11px;border:1px solid var(--amber-line);background:var(--sel);">
+            <div style="width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 4px var(--amber-soft);flex:none;"></div>
+            <div style="flex:1;font-family:'Epilogue',system-ui,sans-serif;font-size:13.5px;color:var(--t1);">Waiting for access — I'll notice the moment you grant it.</div>
+            <div style="height:30px;display:flex;align-items:center;gap:7px;padding:0 14px;border-radius:8px;background:var(--amber);color:#fff;font-size:13px;font-weight:600;cursor:pointer;box-shadow:var(--shadow-sm);" style-hover="filter:brightness(1.08);" style-active="transform:scale(.985);">
+              Open System Settings
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"></path><path d="M20 4l-9 9"></path><path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"></path></svg>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="font-family:'Epilogue',system-ui,sans-serif;font-size:13px;color:var(--t3);flex:1;">You can skip this and grant it later from Settings.</div>
+            <div style="height:31px;display:flex;align-items:center;padding:0 15px;border-radius:8px;border:1px solid var(--line-2);background:var(--w-card);font-size:13px;font-weight:500;cursor:pointer;" style-hover="background:var(--sel);">Skip for now</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;'light' | 'dark'&quot;}}">
+class Component extends DCLogic {
+  state = { theme: null, expDerived: true, lookInside: false, sheet: null, trash: true, nav: 'recs' };
+
+  get theme() { return this.state.theme || this.props.theme || 'light'; }
+
+  tab(active) {
+    return 'padding:6px 16px;border-radius:7px;font-size:13.5px;font-weight:600;cursor:pointer;transition:all 140ms cubic-bezier(.22,1,.36,1);'
+      + (active ? 'background:var(--amber);color:#fff;' : 'color:var(--t2);');
+  }
+
+  nav(key) {
+    const active = this.state.nav === key;
+    return 'display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:7px;font-size:13px;font-weight:' + (active ? '600' : '500')
+      + ';cursor:pointer;transition:background 140ms cubic-bezier(.22,1,.36,1);'
+      + (active ? 'background:var(--sel);color:var(--amber);' : 'color:var(--t2);');
+  }
+
+  renderVals() {
+    const t = this.theme;
+    const trash = this.state.trash;
+    return {
+      theme: t,
+      setLight: () => this.setState({ theme: 'light' }),
+      setDark: () => this.setState({ theme: 'dark' }),
+      lightTabStyle: this.tab(t === 'light'),
+      darkTabStyle: this.tab(t === 'dark'),
+
+      navRecs: this.nav('recs'),
+      navChanges: this.nav('changes'),
+      navHistory: this.nav('history'),
+      navWatching: this.nav('watching'),
+      goRecs: () => this.setState({ nav: 'recs' }),
+      goChanges: () => this.setState({ nav: 'changes' }),
+      goHistory: () => this.setState({ nav: 'history' }),
+      goWatching: () => this.setState({ nav: 'watching' }),
+
+      expDerived: this.state.expDerived,
+      toggleDerived: () => this.setState(s => ({ expDerived: !s.expDerived })),
+      derivedRowStyle: 'display:flex;align-items:center;gap:14px;padding:11px 16px;border-bottom:1px solid var(--line);cursor:pointer;'
+        + (this.state.expDerived ? 'background:var(--sel);' : ''),
+      derivedChevron: 'transition:transform 160ms cubic-bezier(.22,1,.36,1);'
+        + (this.state.expDerived ? 'transform:rotate(90deg);' : ''),
+
+      lookInside: this.state.lookInside,
+      toggleLook: () => this.setState(s => ({ lookInside: !s.lookInside })),
+      lookLabel: this.state.lookInside ? 'Hide contents' : 'Look inside',
+
+      sheetBatch: this.state.sheet === 'batch',
+      sheetDelete: this.state.sheet === 'delete',
+      sheetTarget: this.state.sheet === 'target',
+      openBatch: (e) => { e.stopPropagation(); this.setState({ sheet: 'batch' }); },
+      openDelete: (e) => { e.stopPropagation(); this.setState({ sheet: 'delete' }); },
+      openTarget: () => this.setState({ sheet: 'target' }),
+      closeSheet: () => this.setState({ sheet: null }),
+
+      toggleTrash: () => this.setState(s => ({ trash: !s.trash })),
+      trashBoxStyle: 'width:17px;height:17px;border-radius:4px;flex:none;margin-top:1px;display:flex;align-items:center;justify-content:center;transition:all 140ms cubic-bezier(.22,1,.36,1);'
+        + (trash ? 'background:var(--amber);border:1px solid var(--amber);' : 'background:transparent;border:1px solid var(--line-2);'),
+      trashCheckStyle: trash ? 'opacity:1;' : 'opacity:0;',
+      trashConsequence: trash
+        ? 'Recoverable from the Trash. The space frees up when you empty it.'
+        : 'Removed right now. The space frees immediately and there is no undo.',
+      deleteLabel: trash ? 'Move 21.4 GB to Trash' : 'Delete 21.4 GB permanently'
+    };
+  }
+}
+</script>
+</body>
+</html>
