@@ -26,13 +26,7 @@ final class MenubarController {
     private var usageItem: NSMenuItem?
     private var checkedItem: NSMenuItem?
 
-    /// 10 minutes, matching v0. Becomes a setting in Step 10.
-    private let pollInterval: TimeInterval = 10 * 60
-
-    /// Menubar state thresholds. Also a setting in Step 10 (F01 specifies them
-    /// as user-configurable); constants until then, at v0's values.
-    private let lowThreshold: Int64 = 5_000_000_000
-    private let criticalThreshold: Int64 = 1_000_000_000
+    private let settings = Settings.shared
 
     // MARK: - Lifecycle
 
@@ -46,7 +40,7 @@ final class MenubarController {
         // `.common` mode so the poll keeps firing while a menu is open — on the
         // default run-loop mode a tracking session starves the timer, which is
         // exactly when the user is looking at the numbers.
-        let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: settings.pollIntervalSeconds, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -120,7 +114,8 @@ final class MenubarController {
         let free = info.availableBytes
 
         if let button = statusItem?.button {
-            let icon = free < criticalThreshold ? "⛔️" : free < lowThreshold ? "⚠️" : "💾"
+            let icon = free < settings.criticalThresholdBytes ? "⛔️"
+                     : free < settings.lowThresholdBytes    ? "⚠️" : "💾"
             button.title = "\(icon) \(ByteFormat.compact(free))"
             button.toolTip = "Free: \(ByteFormat.compact(free)) of \(ByteFormat.compact(info.totalBytes))"
         }
@@ -142,8 +137,8 @@ final class MenubarController {
     /// two sources of truth for the same row.
     private func freeTitle(for info: DiskInfo) -> NSAttributedString {
         let free = info.availableBytes
-        let color: NSColor = free < criticalThreshold ? .systemRed
-                           : free < lowThreshold      ? .systemOrange
+        let color: NSColor = free < settings.criticalThresholdBytes ? .systemRed
+                           : free < settings.lowThresholdBytes    ? .systemOrange
                            : .labelColor
         return NSAttributedString(string: "Free:  \(ByteFormat.compact(free))",
                                   attributes: [.foregroundColor: color])

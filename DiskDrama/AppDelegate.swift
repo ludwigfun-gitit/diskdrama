@@ -11,10 +11,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // the standard shape for a menubar app that also owns a real window.
         NSApp.setActivationPolicy(.accessory)
 
+        // The monitor starts first and deliberately does not depend on the store.
+        // If persistence is broken the app degrades to monitor-only rather than
+        // refusing to launch — same honesty the scanner applies to blind spots.
         let menubar = MenubarController()
         menubar.start()
         self.menubar = menubar
 
+        _ = DataStore.shared
         logLaunchDiagnostics()
     }
 
@@ -49,7 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         strict=\(ByteFormat.precise(info.strictAvailableBytes), privacy: .public) \
         purgeable=\(ByteFormat.precise(info.purgeableBytes), privacy: .public) \
         fullDiskAccess=\(FullDiskAccess.isGranted(), privacy: .public) \
-        fonts(SpaceGrotesk=\(hasGrotesk, privacy: .public), Epilogue=\(hasEpilogue, privacy: .public))
+        fonts(SpaceGrotesk=\(hasGrotesk, privacy: .public), Epilogue=\(hasEpilogue, privacy: .public)) \
+        store=\(DataStore.shared.state.container != nil ? "ready" : "FAILED", privacy: .public) \
+        roots=\(Settings.shared.scanRoots.count, privacy: .public) \
+        exclusions=\(Settings.shared.exclusions.count, privacy: .public)
         """)
 
         // A font that silently fails to register renders as the system face and
