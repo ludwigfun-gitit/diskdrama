@@ -195,9 +195,9 @@ private struct TierCard: View {
             HStack(spacing: 11) {
                 Image(systemName: symbol)
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(isActive ? Theme.accentPress : Theme.text2)
+                    .foregroundStyle(isActive ? .white : Theme.text2)
                     .frame(width: 28, height: 28)
-                    .background(isActive ? Color.white.opacity(0.18) : Theme.hover,
+                    .background(isActive ? Color.white.opacity(0.22) : Theme.hover,
                                 in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 2) {
