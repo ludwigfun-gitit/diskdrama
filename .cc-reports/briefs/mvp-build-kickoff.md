@@ -45,3 +45,13 @@ The full MVP — all 25 flows (F01–F25) per the blueprint's MVP Scope Summary,
 ## Reporting rule
 
 After every commit, write a report to `.cc-reports/reports/<slug>.md`. Also append a matching entry to `Efforts/DiskDrama/diskdrama-history.md` in the vault per dev-workflow's existing rule — create that file (it doesn't exist yet for this project) with your first entry.
+
+## Addendum — design-handoff contradictions (2026-08-04, after Step 7)
+
+Step 6 resolved README-vs-HTML disagreements unilaterally and just reported them — correct, no stop needed. Step 7 hit a similar contradiction (Review tier's Delete button color: README + the HTML's own on-screen caption both said accent-only/danger-reserved-for-confirm, the pixel rendering showed danger-red) and stopped to ask instead — inconsistent with Step 6's own precedent, and unnecessary: it was a one-line, trivially reversible cosmetic call.
+
+Clarified rule, applies for the rest of this build: a contradiction between design-handoff sources (README, on-screen captions, the pixel HTML) is **not** a stop condition by itself. Resolve it — majority of sources wins if there's a tiebreak available (2-against-1 beats "the artifact is always right"), otherwise the pixel HTML as the resolved reference per the original rule — and report the resolution and reasoning. Only escalate a design question if the change is either irreversible, safety-signal-critical in a way a later tweak can't cleanly fix, or genuinely has no tiebreak at all. Cosmetic and easily-reversible stays a build-and-report call, same as Step 6 treated it.
+
+## Addendum 2 — reporting cadence (2026-08-04, after Step 7)
+
+Correction to the reporting rule above: do not write a report to `.cc-reports/reports/` after every step as routine. Keep committing at each logical unit with a clear commit message — that is the ordinary trail. Only stop and write a report when something is a genuine risk, a real deviation from the blueprint/architecture, or an actual blocker — the kind of thing Ludwig or advisory Claude actually needs to know about. Otherwise keep building straight through the rest of the plan without pausing to report.

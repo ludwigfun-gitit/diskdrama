@@ -114,9 +114,22 @@ Against `~/Library/Group Containers/…podcasts` (Tier 2) and the restored
   the parent. Round trip clean.
 - Zero Swift warnings.
 
-## A design contradiction I resolved one way — flagging it
+## Handoff correction — Review-tier Delete button (resolved)
 
-The Review-tier Delete button. The resolved HTML draws it **danger-outlined**
+**Status: corrected in the handoff, not an open ambiguity.** Ludwig's ruling
+(2026-08-04): the Review tier's Delete button uses the **accent** treatment, the
+same as Tier 1. Red is reserved for the delete-confirmation sheet and the
+low-space alert, exactly as the README and the HTML's own caption state. The
+danger-outlined button in the HTML is a defect in the artifact and should be
+treated as such wherever it turns up again — not re-litigated.
+
+Applied in `e050b12`; `DeleteButtonStyle` was removed entirely, since
+`AccentButtonStyle` already carries the destructive variant the confirm sheet
+will need at Step 9.
+
+The evidence, recorded once so the correction has its reasoning attached:
+
+The resolved HTML draws it **danger-outlined**
 (`border:1px solid var(--danger); color:var(--danger)`), while three separate
 statements say that must not exist:
 
@@ -128,15 +141,18 @@ statements say that must not exist:
   confirmation — nowhere else. Tiers are told apart by where they sit and what
   they say, not by colour."*
 
-I built the HTML's version, for consistency with the Step 6 precedent (where the
-README and the HTML disagreed about item rows, the artifact won) and with the
-handoff's "recreate pixel-for-pixel" instruction.
+I initially built the HTML's version, for consistency with the Step 6 precedent
+(where the README and the HTML disagreed about item rows, the artifact won) and
+with the handoff's "recreate pixel-for-pixel" instruction. That precedent does
+**not** extend to this case, and the distinction is worth keeping: Step 6's
+disagreement was the README describing the artifact imprecisely, where the
+artifact is authoritative. Here the artifact contradicts a stated *rule* that the
+artifact itself also states — so it is the artifact that is wrong.
 
-**But I think the prose is more likely right**, and this is a one-line change:
-the app's single most important safety mechanism is the confirm sheet's Trash
-toggle recolouring its button to danger, and spending red one screen earlier
-dilutes exactly that signal. Say the word and I'll flip it to the accent
-treatment Tier 1 uses.
+The substantive reason the rule wins: the confirm sheet's Trash toggle recolours
+its own button to danger when the user turns undo off, and that recolouring is
+the app's single most important safety mechanism. Spending red one screen
+earlier, on a button that merely opens a dialog, is what would blunt it.
 
 ## Deliberately not in this step
 

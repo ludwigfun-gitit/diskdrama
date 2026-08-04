@@ -265,8 +265,22 @@ struct ExplanationPanel: View {
             .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 15, fontSize: 12.5))
             .accessibilityLabel("Open \(app.name)")
         } else if tier.allowsDeletion {
+            // Accent on every tier, Review included.
+            //
+            // The resolved HTML drew this one danger-outlined, but that is a
+            // defect in the handoff rather than an intention: the README states
+            // twice that red is confined to delete confirmations and the
+            // low-space alert, and the HTML's own caption on screen 3c says
+            // "tiers are told apart by where they sit and what they say, not by
+            // colour". Corrected by Ludwig, 2026-08-04.
+            //
+            // The substantive reason is that the confirm sheet's Trash toggle
+            // recolours *its* button to danger when the user turns undo off, and
+            // that recolouring is the app's single most important safety signal.
+            // Spending red one screen earlier, on a button that only opens a
+            // dialog, is what would blunt it.
             Button("Delete \(ByteFormat.compact(item.sizeBytes))…") {}
-                .buttonStyle(DeleteButtonStyle(isCautioned: tier == .reviewFirst))
+                .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 15, fontSize: 12.5))
                 .disabled(true)       // F14 — Step 9
         }
     }
@@ -412,47 +426,5 @@ private struct PreviewRow: View {
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
         .accessibilityLabel("\(entry.name), \(ByteFormat.compact(entry.sizeBytes)). Look inside.")
-    }
-}
-
-// MARK: - Delete button
-
-/// The delete affordance.
-///
-/// Tier 1 is a normal accent button; Tier 3 is outlined in the danger color, per
-/// the resolved design. Note this is the *opener* — the confirmation behind it is
-/// where the Trash toggle lives and where the real safety decision is made.
-struct DeleteButtonStyle: ButtonStyle {
-    let isCautioned: Bool
-
-    @Environment(\.isEnabled) private var isEnabled
-    @State private var isHovering = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(Theme.ui(12.5, weight: .semibold))
-            .foregroundStyle(foreground)
-            .padding(.horizontal, 15)
-            .frame(height: 29)
-            .background(background, in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
-                    .stroke(isCautioned ? Theme.danger : .clear, lineWidth: 1)
-            )
-            .opacity(isEnabled ? 1 : 0.4)
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .animation(Theme.transition, value: configuration.isPressed)
-            .animation(Theme.transition, value: isHovering)
-            .onHover { isHovering = $0 }
-    }
-
-    private var foreground: Color {
-        guard isCautioned else { return .white }
-        return isHovering && isEnabled ? .white : Theme.danger
-    }
-
-    private var background: Color {
-        guard isCautioned else { return Theme.accent }
-        return isHovering && isEnabled ? Theme.danger : .clear
     }
 }
