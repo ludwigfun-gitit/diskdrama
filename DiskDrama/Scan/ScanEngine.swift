@@ -44,6 +44,10 @@ final class ScanEngine {
     private(set) var progress: FileTreeWalker.Progress?
     private(set) var lastResult: ScanResult?
 
+    /// Tiered recommendations from the last completed scan (F08). Built on the
+    /// scan queue, not here — it is a full tree walk and does not belong on main.
+    private(set) var recommendations: RecommendationSet?
+
     /// Non-nil while the traversal has been stuck on one directory. Set by the
     /// watchdog on the main actor, not by the walk — the whole point is that it
     /// works when the walk is too blocked to report anything.
@@ -244,6 +248,24 @@ final class ScanEngine {
             Log.scan.notice("""
             slow directory — \(String(format: "%.1f", slow.seconds), privacy: .public)s \
             at \(slow.path, privacy: .private)
+            """)
+        }
+
+        let set = RecommendationBuilder.build(from: result)
+        recommendations = set
+        Log.scan.notice("""
+        classified — reclaimable=\(ByteFormat.precise(set.totalReclaimableBytes), privacy: .public) \
+        safe=\(set.inTier(.safe).count, privacy: .public)/\(ByteFormat.compact(set.reclaimableBytes(in: .safe)), privacy: .public) \
+        appManaged=\(set.inTier(.appManaged).count, privacy: .public) \
+        review=\(set.inTier(.reviewFirst).count, privacy: .public)/\(ByteFormat.compact(set.reclaimableBytes(in: .reviewFirst)), privacy: .public)
+        """)
+        for rec in set.recommendations.prefix(12) {
+            Log.scan.notice("""
+            → T\(rec.tier.rawValue, privacy: .public) \
+            \(ByteFormat.compact(rec.sizeBytes), privacy: .public) \
+            \(rec.classification.title, privacy: .public) \
+            [\(rec.classification.key, privacy: .public)] \
+            at \(rec.path, privacy: .private)
             """)
         }
 
