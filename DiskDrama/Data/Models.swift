@@ -250,6 +250,14 @@ final class CleanupEntry {
     /// space, so verification totals have to account for it explicitly.
     var restoredAt: Date?
 
+    /// Where the item actually landed in the Trash.
+    ///
+    /// F16 needs this and cannot derive it: the Trash renames on collision, so
+    /// an item deleted from `~/Projects/build` may be sitting at
+    /// `~/.Trash/build 3`. Guessing would restore the wrong thing or nothing.
+    /// Nil for immediate-mode deletions, which have nowhere to come back from.
+    var trashedPath: String?
+
     var mode: DeletionMode {
         get { DeletionMode(rawValue: modeRaw) ?? .trash }
         set { modeRaw = newValue.rawValue }

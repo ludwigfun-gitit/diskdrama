@@ -330,9 +330,10 @@ struct ExplanationPanel: View {
             // that recolouring is the app's single most important safety signal.
             // Spending red one screen earlier, on a button that only opens a
             // dialog, is what would blunt it.
-            Button("Delete \(ByteFormat.compact(item.sizeBytes))…") {}
-                .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 15, fontSize: 12.5))
-                .disabled(true)       // F14 — Step 9
+            Button("Delete \(ByteFormat.compact(item.sizeBytes))…") {
+                model.presentDeleteSheet(for: item)
+            }
+            .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 15, fontSize: 12.5))
         }
     }
 }

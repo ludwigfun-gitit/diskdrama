@@ -39,9 +39,10 @@ struct TierPane: View {
                 // managed routes to the owning app; Review first is strictly one
                 // at a time, on purpose — so neither gets a button here.
                 if tier.allowsBatchApproval && !items.isEmpty {
-                    Button("Clean all \(items.count)…") {}
-                        .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 14))
-                        .disabled(true)   // F15 — Step 9
+                    Button("Clean all \(items.count)…") {
+                        model.presentBatchSheet(for: tier)
+                    }
+                    .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 14))
                 }
             }
 

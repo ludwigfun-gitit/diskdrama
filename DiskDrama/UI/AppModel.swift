@@ -33,6 +33,151 @@ final class AppModel {
     /// Minimal API-key entry until Step 10 builds the real Settings surface.
     var isShowingAPIKeySheet = false
 
+    // MARK: - Deletion (F14–F16)
+
+    enum ActiveSheet: Identifiable {
+        case delete(Recommendation)
+        case batchClean(Tier)
+
+        var id: String {
+            switch self {
+            case .delete(let item):  "delete-\(item.path)"
+            case .batchClean(let t): "batch-\(t.rawValue)"
+            }
+        }
+    }
+
+    var activeSheet: ActiveSheet?
+
+    /// A04: the per-job deletion mode, pre-set from the global default and
+    /// **reset every time a sheet opens**. A user who flips one job to
+    /// permanent must not find the next job silently pre-flipped too — that is
+    /// precisely the setting where a sticky value does damage.
+    var moveToTrash = true
+
+    /// F24's running figure. Deliberately separate from the volume reading:
+    /// Trash-mode bytes are *not* reclaimed until the Trash is emptied, so this
+    /// counts only what actually left the disk.
+    private(set) var reclaimedThisSessionBytes: Int64 = 0
+    /// Bytes moved to the Trash this session — recoverable, and still occupying
+    /// the disk. Reported separately rather than folded into the figure above,
+    /// which would be a claim the app cannot back up.
+    private(set) var trashedThisSessionBytes: Int64 = 0
+
+    /// Items deleted in this session, so they leave the list immediately
+    /// without waiting for a rescan.
+    private var deletedPaths: Set<String> = []
+
+    /// The last thing that went wrong, for the sheet to show.
+    var deletionError: String?
+
+    func presentDeleteSheet(for item: Recommendation) {
+        moveToTrash = Settings.shared.defaultDeletionMode == .trash
+        deletionError = nil
+        activeSheet = .delete(item)
+    }
+
+    func presentBatchSheet(for tier: Tier) {
+        moveToTrash = Settings.shared.defaultDeletionMode == .trash
+        deletionError = nil
+        activeSheet = .batchClean(tier)
+    }
+
+    /// F14. Returns true when the item actually went.
+    @discardableResult
+    func delete(_ item: Recommendation, batchID: UUID? = nil) async -> Bool {
+        let mode: DeletionMode = moveToTrash ? .trash : .immediate
+        do {
+            let outcome = try await DeletionService.perform(item, mode: mode)
+            record(outcome, batchID: batchID)
+            deletedPaths.insert(outcome.path)
+            if mode == .trash {
+                trashedThisSessionBytes += outcome.sizeBytes
+            } else {
+                reclaimedThisSessionBytes += outcome.sizeBytes
+            }
+            disk.refresh()
+            return true
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            Log.app.error("deletion refused or failed: \(message, privacy: .public)")
+            deletionError = message
+            // A failed item is still logged, so the history shows the attempt
+            // rather than silently omitting it.
+            recordFailure(item, mode: mode, detail: message, batchID: batchID)
+            return false
+        }
+    }
+
+    /// F15. One batch ID across the job so the log can summarise it as a job
+    /// rather than as N unrelated rows.
+    func deleteBatch(_ items: [Recommendation]) async {
+        let batchID = UUID()
+        for item in items {
+            await delete(item, batchID: batchID)
+        }
+        loadPersistedState()
+    }
+
+    /// F16. Only offered for Trash-mode entries that are still restorable.
+    func undo(_ entry: CleanupEntry) async {
+        guard let trashedPath = entry.trashedPath else { return }
+        do {
+            try await DeletionService.restore(from: trashedPath, to: entry.path)
+            markRestored(entry)
+            // A restore re-consumes space, so the session totals have to move
+            // back — otherwise the app would keep claiming it freed something
+            // that is once again on the disk.
+            trashedThisSessionBytes = max(0, trashedThisSessionBytes - entry.sizeBytes)
+            deletedPaths.remove(entry.path)
+            disk.refresh()
+            loadPersistedState()
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            Log.app.error("restore failed: \(message, privacy: .public)")
+            deletionError = message
+        }
+    }
+
+    // MARK: - Cleanup log writes (F22)
+
+    private func record(_ outcome: DeletionService.Outcome, batchID: UUID?) {
+        guard let container = DataStore.shared.state.container else { return }
+        let context = ModelContext(container)
+        let entry = CleanupEntry(path: outcome.path, name: outcome.name,
+                                 sizeBytes: outcome.sizeBytes, mode: outcome.mode,
+                                 outcome: .succeeded, batchID: batchID)
+        entry.trashedPath = outcome.trashedPath
+        context.insert(entry)
+        try? context.save()
+        cleanupLog.insert(entry, at: 0)
+    }
+
+    private func recordFailure(_ item: Recommendation, mode: DeletionMode,
+                               detail: String, batchID: UUID?) {
+        guard let container = DataStore.shared.state.container else { return }
+        let context = ModelContext(container)
+        let entry = CleanupEntry(path: item.path, name: item.name,
+                                 sizeBytes: item.sizeBytes, mode: mode,
+                                 outcome: .failed, batchID: batchID)
+        entry.failureDetail = detail
+        context.insert(entry)
+        try? context.save()
+    }
+
+    private func markRestored(_ entry: CleanupEntry) {
+        guard let container = DataStore.shared.state.container else { return }
+        let context = ModelContext(container)
+        let id = entry.id
+        var descriptor = FetchDescriptor<CleanupEntry>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        if let stored = try? context.fetch(descriptor).first {
+            stored.restoredAt = Date()
+            stored.outcomeRaw = DeletionOutcome.restored.rawValue
+            try? context.save()
+        }
+    }
+
     var pane: Pane = .tier(.safe)
 
     /// Per-tier selected row path.
@@ -119,8 +264,11 @@ final class AppModel {
         return nil
     }
 
+    /// Deleted items leave the list immediately rather than lingering until the
+    /// next scan — a row you just deleted still sitting there reads as a
+    /// failure, and clicking it again would fail the existence guard.
     func items(in tier: Tier) -> [Recommendation] {
-        recommendations?.inTier(tier) ?? []
+        (recommendations?.inTier(tier) ?? []).filter { !deletedPaths.contains($0.path) }
     }
 
     func reclaimable(in tier: Tier) -> Int64 {

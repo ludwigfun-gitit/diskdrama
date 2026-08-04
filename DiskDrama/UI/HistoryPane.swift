@@ -32,7 +32,7 @@ struct HistoryPane: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(model.cleanupLog) { entry in
-                    HistoryRow(entry: entry)
+                    HistoryRow(entry: entry) { Task { await model.undo(entry) } }
                 }
                 Text("\(ByteFormat.compact(model.allTimeFreedBytes)) freed all-time, across \(model.cleanupLog.count) cleanup\(model.cleanupLog.count == 1 ? "" : "s").")
                     .font(Theme.body(12.5))
@@ -49,6 +49,7 @@ struct HistoryPane: View {
 
 private struct HistoryRow: View {
     let entry: CleanupEntry
+    let onUndo: () -> Void
 
     var body: some View {
         HStack(spacing: 14) {
@@ -70,6 +71,15 @@ private struct HistoryRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
+
+            // F16: undo exists only for Trash-mode jobs that are still there.
+            // An immediate deletion renders *no* button rather than a disabled
+            // one — a greyed-out Undo implies the data is recoverable and just
+            // isn't right now, which is the opposite of true.
+            if entry.isRestorable {
+                Button("Put back", action: onUndo)
+                    .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
+            }
 
             Text(ByteFormat.compact(entry.sizeBytes))
                 .font(Theme.mono(13.5, weight: .semibold))

@@ -25,6 +25,12 @@ struct MainWindow: View {
         .sheet(isPresented: $model.isShowingAPIKeySheet) {
             APIKeySheet(model: model)
         }
+        .sheet(item: $model.activeSheet) { sheet in
+            switch sheet {
+            case .delete(let item):  DeleteConfirmSheet(model: model, item: item)
+            case .batchClean(let t): BatchCleanSheet(model: model, tier: t)
+            }
+        }
     }
 
     // MARK: - Title bar
