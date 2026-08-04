@@ -26,6 +26,13 @@ final class AppModel {
     let scanEngine: ScanEngine
     let disk: DiskMonitor
 
+    /// F09's deeper prose (A05). Local classification still does all the
+    /// tiering; this only enriches the item the user is looking at.
+    let explanations = ExplanationService()
+
+    /// Minimal API-key entry until Step 10 builds the real Settings surface.
+    var isShowingAPIKeySheet = false
+
     var pane: Pane = .tier(.safe)
 
     /// Per-tier selected row path.

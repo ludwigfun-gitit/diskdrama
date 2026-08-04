@@ -31,6 +31,12 @@ struct ExplanationPanel: View {
             if model.lookInsideOpen { lookInside }
             actions
         }
+        // A05: generated on first view, for the item actually opened. A cache
+        // hit resolves without touching the network, and `.task(id:)` re-fires
+        // when the subject changes rather than on every re-render.
+        .task(id: item.fingerprint) {
+            model.explanations.requestIfNeeded(for: item)
+        }
         .padding(.horizontal, 26)
         .padding(.top, 16)
         .padding(.bottom, 18)
@@ -111,7 +117,48 @@ struct ExplanationPanel: View {
                     .font(Theme.mono(12.5))
                     .foregroundStyle(Theme.text3)
             }
+
+            explanationSource
         }
+    }
+
+    /// Where the prose in the two columns came from.
+    ///
+    /// The user is being asked to delete files on the strength of this text, so
+    /// "a rule table recognised the folder name" and "a model looked at it"
+    /// are different claims and are labelled differently. Silently swapping
+    /// richer text in and letting it read as the same source would be the
+    /// dishonest option.
+    @ViewBuilder
+    private var explanationSource: some View {
+        switch model.explanations.state(for: item) {
+        case .loading:
+            HStack(spacing: 5) {
+                Text("·").foregroundStyle(Theme.text3)
+                ProgressView().controlSize(.mini).scaleEffect(0.7)
+                Text("looking closer…").foregroundStyle(Theme.text3)
+            }
+            .font(Theme.mono(12.5))
+        case .ready:
+            Text("· looked closer")
+                .font(Theme.mono(12.5))
+                .foregroundStyle(Theme.glow)
+        case .failed(let reason):
+            Text("· couldn't look closer")
+                .font(Theme.mono(12.5))
+                .foregroundStyle(Theme.text3)
+                .help(reason)
+        case .idle, .unavailable:
+            EmptyView()
+        }
+    }
+
+    /// The model's answer when it has one, the rule table's otherwise.
+    private var aiExplanation: AnthropicClient.Explanation? {
+        if case .ready(let explanation) = model.explanations.state(for: item) {
+            return explanation
+        }
+        return nil
     }
 
     private var metadataText: String {
@@ -134,8 +181,11 @@ struct ExplanationPanel: View {
         }
     }
 
+    /// The model's confidence once it has one — it looked at the item, the
+    /// rule table only matched a path. Where they disagree, the more informed
+    /// number is the one to show.
     private var confidence: ConfidenceBand {
-        ConfidenceBand(item.classification.confidence)
+        ConfidenceBand(aiExplanation?.confidence ?? item.classification.confidence)
     }
 
     // MARK: - Explanation
@@ -145,7 +195,7 @@ struct ExplanationPanel: View {
     /// in the order they have them.
     private var explanation: some View {
         HStack(alignment: .top, spacing: 30) {
-            Text(item.classification.whatThisIs)
+            Text(aiExplanation?.whatThisIs ?? item.classification.whatThisIs)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -176,10 +226,11 @@ struct ExplanationPanel: View {
     /// and "regenerating costs you six minutes a project" are one thought, and
     /// splitting them lets a reader take the first half and stop.
     private var consequence: String {
-        guard let rebuild = item.classification.rebuildCost else {
-            return item.classification.consequence
+        let base = aiExplanation?.consequenceOfDeleting ?? item.classification.consequence
+        guard let rebuild = aiExplanation.map({ $0.rebuildCost }) ?? item.classification.rebuildCost else {
+            return base
         }
-        return item.classification.consequence + " " + rebuild
+        return base + " " + rebuild
     }
 
     private var personalNote: String? {

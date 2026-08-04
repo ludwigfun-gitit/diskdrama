@@ -141,9 +141,9 @@ struct Sidebar: View {
     // MARK: - Settings
 
     private var settingsRow: some View {
-        // Inert until F19's Settings surface exists. Rendered rather than hidden
-        // because its absence would be the more confusing of the two.
-        HoverRow(isActive: false) {
+        // Opens the API-key sheet for now; Step 10 turns this into the real
+        // Settings surface and the key becomes one section of it.
+        HoverRow(isActive: false, action: { model.isShowingAPIKeySheet = true }) {
             HStack(spacing: 9) {
                 Image(systemName: "gearshape")
                     .font(.system(size: 13, weight: .regular))

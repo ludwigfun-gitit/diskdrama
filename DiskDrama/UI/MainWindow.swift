@@ -22,6 +22,9 @@ struct MainWindow: View {
         }
         .background(Theme.content)
         .frame(minWidth: 940, minHeight: 620)
+        .sheet(isPresented: $model.isShowingAPIKeySheet) {
+            APIKeySheet(model: model)
+        }
     }
 
     // MARK: - Title bar
