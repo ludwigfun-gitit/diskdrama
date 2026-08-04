@@ -28,13 +28,28 @@ struct HistoryPane: View {
         }
     }
 
+    /// States the two figures separately. "Freed" means the volume actually
+    /// has the space back; anything still in the Trash does not, however much
+    /// nicer one large number would look.
+    private var footer: String {
+        let count = model.cleanupLog.count
+        var text = "\(ByteFormat.compact(model.allTimeFreedBytes)) freed all-time, "
+            + "across \(count) cleanup\(count == 1 ? "" : "s")."
+        let trashed = model.allTimeTrashedBytes
+        if trashed > 0 {
+            text += " A further \(ByteFormat.compact(trashed)) is in the Trash — "
+                + "that space comes back when you empty it."
+        }
+        return text
+    }
+
     private var list: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(model.cleanupLog) { entry in
                     HistoryRow(entry: entry) { Task { await model.undo(entry) } }
                 }
-                Text("\(ByteFormat.compact(model.allTimeFreedBytes)) freed all-time, across \(model.cleanupLog.count) cleanup\(model.cleanupLog.count == 1 ? "" : "s").")
+                Text(footer)
                     .font(Theme.body(12.5))
                     .foregroundStyle(Theme.text3)
                     .frame(maxWidth: .infinity, alignment: .leading)

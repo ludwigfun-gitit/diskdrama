@@ -93,22 +93,21 @@ enum DeletionService {
     /// is on main; every byte of file I/O below still runs on `queue`.
     @MainActor
     static func guardPath(_ path: String) -> Refusal? {
-        let home = NSHomeDirectory()
-        let normalized = (path as NSString).standardizingPath
+        let normalized = canonical(path)
 
-        if normalized == home { return .isHomeDirectory }
+        if normalized == canonical(NSHomeDirectory()) { return .isHomeDirectory }
         if normalized == "/" { return .isHomeDirectory }
 
         // Belt and braces over the allowlist. A scan root could in principle be
         // configured somewhere here; that would not make deleting from it a
         // good idea. The blueprint's "Not this app" excludes system cleanup
         // outright.
-        let systemPrefixes = ["/System", "/Library", "/usr", "/bin", "/sbin", "/private/var", "/Applications"]
+        let systemPrefixes = ["/System", "/Library", "/usr", "/bin", "/sbin", "/var", "/Applications"]
         if systemPrefixes.contains(where: { normalized == $0 || normalized.hasPrefix($0 + "/") }) {
             return .systemLocation
         }
 
-        let roots = Settings.shared.scanRoots.map { ($0 as NSString).standardizingPath }
+        let roots = Settings.shared.scanRoots.map(canonical)
         if roots.contains(normalized) { return .isScanRoot }
 
         // The allowlist itself: inside a root, not merely not-forbidden.
@@ -117,6 +116,29 @@ enum DeletionService {
         }
 
         return nil
+    }
+
+    /// One canonical spelling of a path, computed without consulting the disk.
+    ///
+    /// `standardizingPath` alone is not safe here: it collapses `/private/tmp`
+    /// to `/tmp` **only when the path exists**. So an item that had just been
+    /// deleted normalized differently from the scan root containing it, the
+    /// prefix comparison failed, and the guard reported "outside the places you
+    /// asked me to look" for a folder that was plainly inside one. Caught by
+    /// testing a batch containing an already-deleted item.
+    ///
+    /// The refusal erred safe, but it erred *confusingly* — and a guard whose
+    /// answer depends on filesystem timing is not one to leave in the only code
+    /// that deletes things. The `/private` collapse is now unconditional.
+    private static func canonical(_ path: String) -> String {
+        var result = (path as NSString).expandingTildeInPath
+        result = (result as NSString).standardizingPath
+        for synonym in ["/private/tmp", "/private/var", "/private/etc"] {
+            if result == synonym || result.hasPrefix(synonym + "/") {
+                return String(result.dropFirst("/private".count))
+            }
+        }
+        return result
     }
 
     // MARK: - Verification (F14's precondition)

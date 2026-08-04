@@ -223,9 +223,25 @@ final class AppModel {
     /// "scanned and found nothing", which F08 requires be said differently.
     var hasNeverScanned: Bool { recommendations == nil }
 
+    /// Bytes that actually left the disk, all-time.
+    ///
+    /// Trash-mode jobs are **excluded**: those bytes are still occupying the
+    /// volume until the Trash is emptied. A04's ripple into F24 is explicit
+    /// that a Trash job must not claim reclaimed space, and a footer reading
+    /// "264 MB freed" while half of it sits in the Trash is the same false
+    /// claim in a quieter place.
     var allTimeFreedBytes: Int64 {
         cleanupLog
-            .filter { $0.outcome != .failed && $0.restoredAt == nil }
+            .filter { $0.outcome != .failed && $0.restoredAt == nil && $0.mode == .immediate }
+            .reduce(0) { $0 + $1.sizeBytes }
+    }
+
+    /// Bytes sitting in the Trash from past jobs — recoverable, and still
+    /// taking up room. Reported next to the freed figure rather than folded
+    /// into it.
+    var allTimeTrashedBytes: Int64 {
+        cleanupLog
+            .filter { $0.outcome != .failed && $0.restoredAt == nil && $0.mode == .trash }
             .reduce(0) { $0 + $1.sizeBytes }
     }
 

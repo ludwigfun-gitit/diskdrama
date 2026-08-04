@@ -143,7 +143,7 @@ struct Sidebar: View {
     private var settingsRow: some View {
         // Opens the API-key sheet for now; Step 10 turns this into the real
         // Settings surface and the key becomes one section of it.
-        HoverRow(isActive: false, action: { model.isShowingAPIKeySheet = true }) {
+        HoverRow(isActive: false, action: { model.isShowingAPIKeySheet = true }, label: "Settings") {
             HStack(spacing: 9) {
                 Image(systemName: "gearshape")
                     .font(.system(size: 13, weight: .regular))
@@ -273,7 +273,7 @@ private struct NavRow: View {
     let action: (() -> Void)?
 
     var body: some View {
-        HoverRow(isActive: isActive, action: action) {
+        HoverRow(isActive: isActive, action: action, label: "\(title), \(badge)") {
             HStack(spacing: 10) {
                 Text(title).font(Theme.ui(13, weight: isActive ? .semibold : .medium))
                 Spacer()
@@ -282,12 +282,6 @@ private struct NavRow: View {
                     .foregroundStyle(badgeIsAccent ? Theme.accent : Theme.text3)
             }
         }
-        // The inert Watching row isn't a Button, so its two Texts stay separate
-        // elements and both inherit the label — VoiceOver reads the row twice.
-        // Collapsing to one element makes the label the whole row, either way.
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title), \(badge)")
-        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 }
 
@@ -303,17 +297,31 @@ private struct NavRow: View {
 private struct HoverRow<Content: View>: View {
     let isActive: Bool
     var action: (() -> Void)?
+    /// Stated rather than inferred, since the chrome's children are hidden.
+    var label: String = ""
     @ViewBuilder var content: Content
 
     @State private var isHovering = false
 
     var body: some View {
         if let action {
-            Button(action: action) { chrome }
+            // The label goes on the Button, and the children are hidden rather
+            // than collapsed. Applying `.accessibilityElement(children: .ignore)`
+            // *outside* a Button strips its role — the row rendered fine and
+            // exposed itself as AXUnknown, invisible to VoiceOver and
+            // unreachable by keyboard.
+            Button(action: action) { chrome.accessibilityHidden(true) }
                 .buttonStyle(.plain)
                 .onHover { isHovering = $0 }
+                .accessibilityLabel(label)
+                .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
         } else {
-            chrome.onHover { isHovering = $0 }
+            // An inert row has no button to preserve, so collapsing is right —
+            // otherwise its two Texts are read as two separate elements.
+            chrome
+                .onHover { isHovering = $0 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(label)
         }
     }
 
