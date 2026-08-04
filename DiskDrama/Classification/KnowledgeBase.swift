@@ -307,6 +307,13 @@ enum KnowledgeBase {
     /// a path. `SnapshotRestorer` needs this: a persisted item already knows
     /// which rule classified it, and re-running the matcher could silently pick
     /// a different rule if the table has changed since the scan.
+    /// The smallest size any rule will fire at. The traversal needs this to know
+    /// how small a folder it still has to look inside — deriving it from the
+    /// rules means adding a rule with a lower floor can never silently become
+    /// unreachable.
+    static let smallestRuleMinimumBytes: Int64 =
+        rules.map(\.minimumSizeBytes).min() ?? 20_000_000
+
     static let rulesByKey: [String: ClassificationRule] =
         Dictionary(rules.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
 

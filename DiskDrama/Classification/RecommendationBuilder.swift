@@ -68,6 +68,19 @@ enum RecommendationBuilder {
     /// signal disappears into the noise.
     static let unknownItemFloorBytes: Int64 = 1_000_000_000
 
+    /// How small a folder can be and still be worth opening.
+    ///
+    /// This was a tenth of the Tier 3 floor — 100 MB — which quietly capped the
+    /// whole classifier: a rule that fires at 20 MB could never be reached
+    /// through a parent under 100 MB, and since a parent is always at least as
+    /// large as its child, every rule with a minimum below 100 MB was partly
+    /// unreachable. A 60 MB `node_modules` in a 60 MB project was invisible.
+    /// The floor now follows the most permissive rule, so traversal is never
+    /// the thing that decides what is classifiable.
+    static var descendFloorBytes: Int64 {
+        min(unknownItemFloorBytes / 10, KnowledgeBase.smallestRuleMinimumBytes)
+    }
+
     static func build(
         from result: ScanResult,
         ignoredPaths: Set<String> = [],
@@ -120,7 +133,7 @@ enum RecommendationBuilder {
 
             // Nothing matched. Descend if there is anything worth descending into.
             var descended = false
-            for child in node.children where child.sizeBytes >= unknownItemFloorBytes / 10 {
+            for child in node.children where child.sizeBytes >= descendFloorBytes {
                 visit(child)
                 descended = true
             }

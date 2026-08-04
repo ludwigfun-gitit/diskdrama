@@ -15,6 +15,14 @@ struct BatchCleanSheet: View {
     @State private var isWorking = false
     @State private var progress: Int = 0
 
+    /// Set only when a run finished with something left behind (F15's partial
+    /// case). Non-empty means the sheet has switched from "about to act" to
+    /// "here is what happened".
+    @State private var failures: [String] = []
+    @State private var succeeded = 0
+    @State private var freedBytes: Int64 = 0
+    private var isReporting: Bool { !failures.isEmpty }
+
     private var items: [Recommendation] { model.items(in: tier) }
     private var chosen: [Recommendation] { items.filter { selected.contains($0.path) } }
     private var totalBytes: Int64 { chosen.reduce(0) { $0 + $1.sizeBytes } }
@@ -33,10 +41,14 @@ struct BatchCleanSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Clean all \(items.count) safe items?")
+            Text(isReporting
+                 ? (succeeded == 0 ? "Nothing was cleaned"
+                                   : "Cleaned \(succeeded) of \(succeeded + failures.count)")
+                 : "Clean all \(items.count) safe items?")
                 .font(Theme.display(17))
                 .foregroundStyle(Theme.text)
-            Text("Every one of these regenerates on its own. Uncheck anything you'd rather keep.")
+            Text(isReporting ? partialSummary
+                 : "Every one of these regenerates on its own. Uncheck anything you'd rather keep.")
                 .font(Theme.body(13.5))
                 .lineSpacing(3)
                 .foregroundStyle(Theme.text2)
@@ -44,6 +56,21 @@ struct BatchCleanSheet: View {
         }
         .padding(.horizontal, 24)
         .padding(.top, 22)
+    }
+
+    /// Names the leftovers rather than counting them. "2 items failed" sends the
+    /// user hunting; the names tell them whether it mattered.
+    private var partialSummary: String {
+        let moved = model.moveToTrash ? "moved" : "removed"
+        let names = failures.joined(separator: ", ")
+        // Leading with "0 bytes moved to the Trash" when the whole job failed
+        // buries the actual news under a number that means nothing.
+        let opening = succeeded == 0
+            ? ""
+            : "\(ByteFormat.compact(freedBytes)) \(model.moveToTrash ? "moved to the Trash" : "removed"). "
+        return failures.count == 1
+            ? "\(opening)One couldn't be \(moved) — \(names). It's still listed below, untouched."
+            : "\(opening)\(failures.count) couldn't be \(moved) — \(names). They're still listed below, untouched."
     }
 
     private var box: some View {
@@ -96,7 +123,7 @@ struct BatchCleanSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(isWorking)
+        .disabled(isWorking || isReporting)
         .accessibilityLabel("\(item.classification.title), \(ByteFormat.compact(item.sizeBytes))")
         .accessibilityAddTraits(selected.contains(item.path) ? [.isButton, .isSelected] : .isButton)
     }
@@ -125,6 +152,13 @@ struct BatchCleanSheet: View {
             }
             HStack(spacing: 9) {
                 Spacer()
+                if isReporting {
+                    // Retrying the same items in place would most likely fail
+                    // the same way; the honest close is to hand the user back
+                    // the list and let them look at what's left.
+                    Button("Done") { model.activeSheet = nil }
+                        .buttonStyle(AccentButtonStyle(height: 32, horizontalPadding: 18, fontSize: 13.5))
+                } else {
                 Button("Cancel") { model.activeSheet = nil }
                     .buttonStyle(GhostButtonStyle(height: 32, horizontalPadding: 16, fontSize: 13.5))
                     .disabled(isWorking)
@@ -144,6 +178,7 @@ struct BatchCleanSheet: View {
                 .buttonStyle(AccentButtonStyle(height: 32, horizontalPadding: 18, fontSize: 13.5,
                                                isDestructive: !model.moveToTrash))
                 .disabled(isWorking || chosen.isEmpty)
+                }
             }
         }
         .padding(.horizontal, 24)
@@ -160,12 +195,37 @@ struct BatchCleanSheet: View {
             // and would also make a partial failure much harder to describe —
             // F14/F15 require reporting exactly what remains, and sequential
             // execution is what makes "it stopped here" a true statement.
+            var failed: [String] = []
+            var freed: Int64 = 0
             for item in batch {
-                await model.delete(item, batchID: batchIdentifier)
+                if await model.delete(item, batchID: batchIdentifier) {
+                    freed += item.sizeBytes
+                } else {
+                    // Titles alone repeat — two failed node_modules would read
+                    // "Installed npm packages, Installed npm packages". The
+                    // containing folder is what tells them apart.
+                    let parent = ((item.path as NSString).deletingLastPathComponent as NSString).lastPathComponent
+                    failed.append(parent.isEmpty ? item.classification.title
+                                                 : "\(item.classification.title) in \(parent)")
+                }
                 progress += 1
             }
             isWorking = false
-            model.activeSheet = nil
+
+            if failed.isEmpty {
+                model.activeSheet = nil
+                return
+            }
+            // A partial failure is the one outcome that must not be dismissed
+            // silently. Closing here would leave the user believing the whole
+            // job ran, with the leftovers only discoverable by noticing the
+            // total didn't move. The sheet stays up and names what survived —
+            // and because the list is derived from the model, the rows still
+            // showing *are* the ones that remain.
+            failures = failed
+            freedBytes = freed
+            succeeded = batch.count - failed.count
+            model.deletionError = nil   // superseded by the fuller summary
         }
     }
 

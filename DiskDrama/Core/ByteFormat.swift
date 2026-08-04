@@ -52,6 +52,13 @@ enum ByteFormat {
     /// decimal point, because every size here is formatted non-locally to match
     /// Finder. One separator meaning two different things in one line of text is
     /// worse than not localizing at all.
+    /// A file count with its noun, pluralised. Every caller was writing
+    /// `"\(count(n)) files"`, which renders "1 files" — small, but it is the
+    /// kind of detail that makes an app feel unattended.
+    static func files(_ value: Int) -> String {
+        "\(count(value)) \(value == 1 ? "file" : "files")"
+    }
+
     static func count(_ value: Int) -> String {
         let digits = String(abs(value))
         var grouped = ""

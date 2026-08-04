@@ -92,7 +92,7 @@ struct DeleteConfirmSheet: View {
     private var summary: String {
         var sentence = "\(ByteFormat.compact(item.sizeBytes))"
         if item.fileCount > 0 {
-            sentence += " across \(ByteFormat.count(item.fileCount)) files"
+            sentence += " across \(ByteFormat.files(item.fileCount))"
         }
         sentence += ". " + item.classification.consequence
         if let rebuild = item.classification.rebuildCost {
@@ -109,8 +109,13 @@ struct DeleteConfirmSheet: View {
 
     private func confirm() {
         isWorking = true
+        let freeBefore = model.disk.info?.strictAvailableBytes ?? 0
+        let mode: DeletionMode = model.moveToTrash ? .trash : .immediate
         Task {
             let succeeded = await model.delete(item)
+            if succeeded {
+                model.verify(expected: item.sizeBytes, mode: mode, freeBefore: freeBefore)
+            }
             isWorking = false
             // Stay open on failure so the reason is readable — closing the
             // sheet on a refusal would leave the user with nothing but an

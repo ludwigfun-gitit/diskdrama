@@ -164,7 +164,7 @@ struct ExplanationPanel: View {
     private var metadataText: String {
         var parts = [ByteFormat.compact(item.sizeBytes)]
         if item.fileCount > 0 {
-            parts.append("\(ByteFormat.count(item.fileCount)) files")
+            parts.append(ByteFormat.files(item.fileCount))
         }
         if let days = item.daysSinceModified, days >= 30 {
             parts.append("untouched \(staleness(days))")
@@ -396,7 +396,7 @@ private struct PreviewTable: View {
             header
             switch preview.notEnumerated {
             case .tooManyEntries(let count):
-                note("About \(ByteFormat.count(count)) files in here — too many to list, and that count is itself the problem. "
+                note("About \(ByteFormat.files(count)) in here — too many to list, and that count is itself the problem. "
                      + "A folder this shape slows every backup and every tool that walks your disk.")
             case .unreadable:
                 note("I couldn't read inside this folder, so I can't show you what's in it. "
@@ -416,7 +416,7 @@ private struct PreviewTable: View {
             Eyebrow(text: "Biggest things inside")
             Spacer()
             if preview.totalFileCount > 0 {
-                Text("\(ByteFormat.count(preview.totalFileCount)) files")
+                Text(ByteFormat.files(preview.totalFileCount))
                     .font(Theme.mono(11.5))
                     .foregroundStyle(Theme.text3)
             }

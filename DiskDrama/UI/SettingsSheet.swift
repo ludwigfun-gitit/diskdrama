@@ -104,7 +104,7 @@ struct SettingsSheet: View {
 
     private var scanRootsSection: some View {
         Section(title: "Where DiskDrama looks",
-                blurb: "A03: scanning is scoped to these folders. Everything else on the disk is "
+                blurb: "Scanning is scoped to these folders. Everything else on the disk is "
                      + "invisible to it — including anything it might otherwise offer to delete.") {
             PathList(paths: scanRoots, emptyNote: "No roots configured — DiskDrama will scan your home folder.") { path in
                 scanRoots.removeAll { $0 == path }
@@ -120,7 +120,7 @@ struct SettingsSheet: View {
 
     private var exclusionsSection: some View {
         Section(title: "Never look here",
-                blurb: "F19. These are skipped entirely — not scanned, not counted, not recommended. "
+                blurb: "Skipped entirely — not scanned, not counted, not recommended. "
                      + "Their sizes are unknown by design; DiskDrama can't report on a folder it "
                      + "never opens.") {
             PathList(paths: exclusions, emptyNote: "Nothing excluded.") { path in
@@ -136,7 +136,7 @@ struct SettingsSheet: View {
 
     private var ignoredSection: some View {
         Section(title: "Never suggest these",
-                blurb: "F18. Still scanned and still counted toward your totals — DiskDrama just "
+                blurb: "Still scanned and still counted toward your totals — DiskDrama just "
                      + "stops offering them. That's the difference from the list above.") {
             if model.ignoredPaths.isEmpty {
                 Text("Nothing dismissed.").settingsCaption()
@@ -150,7 +150,7 @@ struct SettingsSheet: View {
 
     private var deletionSection: some View {
         Section(title: "When you delete something",
-                blurb: "A04. Whichever you pick here is only the starting position — every "
+                blurb: "Whichever you pick here is only the starting position — every "
                      + "confirmation still lets you change it for that one job.") {
             Picker("", selection: $deleteMode) {
                 Text("Move it to the Trash").tag(DeletionMode.trash)
