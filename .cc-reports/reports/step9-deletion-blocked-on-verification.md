@@ -1,11 +1,16 @@
-# Step 9 — Deletion: built, and **not verified end-to-end**
+# Step 9 — Deletion (F14–F16)
 
 **Date:** 2026-08-04
-**Commit:** `2678bb7`
+**Commits:** `2678bb7` (build), `ff04f0e` (fixes found by testing)
 **Flows:** F14, F15, F16 (A04, A08)
-**Status:** builds clean, installs, launches. **The delete flow has never been
-run.** This is the one step where that gap matters most, so it is not going past
-without saying so.
+**Status:** **verified end-to-end.** Accessibility came back and the whole flow
+was exercised against a disposable tree. Two real defects surfaced and are
+fixed.
+
+> The section below describing the verification blocker is kept as written —
+> it was accurate when the step was committed, and the misdiagnosis it records
+> is worth keeping. **Everything it lists as unverified has since been run.**
+> See "Verification results" at the end.
 
 ---
 
@@ -145,3 +150,76 @@ should absorb the interim API-key sheet from Step 8.
 
 **I would not move past this without the verification above being run.** Every
 other step's gap costs a wrong number on screen; this one costs files.
+
+
+---
+
+# Verification results (added after Accessibility was restored)
+
+Run against a disposable tree under `/private/tmp/diskdrama-deltest` —
+`node_modules` and `.build` folders of 126 MB each. Nothing real was touched.
+
+| Flow | Result |
+|---|---|
+| F14 single delete, Trash mode | Folder moved to `~/.Trash`, log `moved to Trash — 132 MB`, row left the list |
+| F14 permanent mode | Folder gone from disk **and** absent from the Trash, log `deleted permanently` |
+| A04 toggle copy | ON → "Recoverable from the Trash…", OFF → "Removed right now… there is no undo" |
+| A04 button changes with it | Confirm button 179pt wide with Trash on, 216pt with it off — the label really does change |
+| F15 batch | Sequential, both items trashed, one failure isolated without stopping the job |
+| F16 undo | Restored to the original path, gone from the Trash, log `restored from Trash` |
+| F16 asymmetry | Trash rows show **Put back**; permanent and failed rows show **no button at all** |
+| Guard | Refuses a missing item with the right reason |
+| Trash collision | Second delete landed as `node_modules 17-39-21-337` — exactly why `trashedPath` is recorded rather than derived |
+
+## Two defects the test found
+
+**1. The guard's allowlist depended on filesystem state.** `standardizingPath`
+collapses `/private/tmp` to `/tmp` **only when the path exists**. So an
+already-deleted item normalised differently from the scan root containing it,
+the prefix test failed, and the guard refused with *"outside the places you
+asked DiskDrama to look"* for a folder plainly inside one.
+
+The refusal erred safe — a mismatch always refuses — but it erred *confusingly*,
+and a guard whose answer depends on filesystem timing has no business being the
+only thing standing between the app and someone's files. Canonicalisation is now
+unconditional and disk-independent. Re-tested: the same case reports *"That
+folder isn't there any more — something else removed it since the last scan."*
+
+This is the clearest argument for the brief's `/tmp`-only rule. The bug was
+invisible to inspection and only appeared when a batch happened to contain an
+item that had already gone.
+
+**2. The history footer counted trashed bytes as freed.** It read *"264 MB freed
+all-time"* while half of that was still in the Trash. A04's ripple into F24 says
+a Trash job must not claim reclaimed space; that applies to the quiet all-time
+figure as much as to the headline. Now: *"132 MB freed all-time, across 6
+cleanups. A further 396 MB is in the Trash — that space comes back when you
+empty it."*
+
+## An accessibility regression from Step 6, fixed here
+
+The Changes and History nav rows rendered and clicked correctly but exposed
+themselves as **AXUnknown** — invisible to VoiceOver, unreachable by keyboard.
+Cause: `.accessibilityElement(children: .ignore)` applied *outside* a `Button`
+strips its role. `HoverRow` now owns its accessibility per branch — label on the
+Button with children hidden, collapse only on the inert row that has no button
+to preserve.
+
+Worth noting how it was caught: not by an audit, but because the rows were
+missing from the AX tree while I was trying to reach the History pane. The
+accessibility tree being my test harness is why it got found at all.
+
+## Also confirmed in passing
+
+**Step 8's API request works.** `explanation — in=136 out=301 cacheWrite=1169
+cacheRead=0 model=claude-opus-5`, with no fallback-retry line — so structured
+outputs, adaptive thinking, prompt caching and server-side fallbacks are all
+accepted together, and the system prompt clears the 512-token cache minimum. The
+panel showed genuinely model-written prose, including the observation that a
+path under `/private/tmp` "looks like a scratch or test project that macOS may
+clear on its own anyway" — which no rule table would have said.
+
+## Left behind
+
+Three `node_modules` folders (~378 MB total) are in the Trash from these tests.
+I don't empty the Trash — that one is yours.
