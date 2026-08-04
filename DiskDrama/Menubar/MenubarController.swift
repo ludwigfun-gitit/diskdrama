@@ -28,6 +28,18 @@ final class MenubarController {
 
     private let settings = Settings.shared
 
+    /// Invoked by "Scan Now" (F02). Injected rather than reached for, so the
+    /// menubar stays a view of state it does not own.
+    var onScanRequested: (() -> Void)?
+
+    /// F07's stop. Falls through to `ScanEngine.abandon()` when the walk is
+    /// wedged in an uninterruptible filesystem call and cannot be asked politely.
+    var onScanStopRequested: (() -> Void)?
+
+    /// The scan progress row, hidden while idle.
+    private var scanItem: NSMenuItem?
+    private var stopItem: NSMenuItem?
+
     // MARK: - Lifecycle
 
     func start() {
@@ -71,6 +83,15 @@ final class MenubarController {
         menu.addItem(.separator())
         checkedItem = disabled("Last checked: —")
         menu.addItem(checkedItem!)
+
+        menu.addItem(.separator())
+        menu.addItem(action("Scan Now", #selector(scanNow), key: "s"))
+        scanItem = disabled("")
+        scanItem?.isHidden = true
+        menu.addItem(scanItem!)
+        stopItem = action("Stop Scan", #selector(stopScan), key: ".")
+        stopItem?.isHidden = true
+        menu.addItem(stopItem!)
 
         menu.addItem(.separator())
         menu.addItem(action("Refresh Now", #selector(refreshFromMenu), key: "r"))
@@ -159,7 +180,25 @@ final class MenubarController {
         checkedItem?.title = "Last checked: failed"
     }
 
+    // MARK: - Scan status
+
+    /// Reflects scan state in the dropdown. Called from the scan engine's
+    /// observation, not polled.
+    func showScanStatus(_ text: String?, canStop: Bool = false) {
+        scanItem?.isHidden = (text == nil)
+        scanItem?.title = text ?? ""
+        stopItem?.isHidden = !canStop
+    }
+
     // MARK: - Actions
+
+    @objc private func scanNow() {
+        onScanRequested?()
+    }
+
+    @objc private func stopScan() {
+        onScanStopRequested?()
+    }
 
     @objc private func openStorageSettings() {
         guard let url = URL(string: "x-apple.systempreferences:com.apple.settings.Storage") else { return }
