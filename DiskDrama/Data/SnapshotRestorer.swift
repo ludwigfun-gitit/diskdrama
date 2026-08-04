@@ -44,7 +44,7 @@ enum SnapshotRestorer {
         descriptor.fetchLimit = 2
         let recent = try context.fetch(descriptor)
         guard let snapshot = recent.first else { return nil }
-        let delta = recent.dropFirst().first.map {
+        let delta = recent.dropFirst().first.flatMap {
             DeltaComputer.compare(previous: $0, current: snapshot)
         }
 

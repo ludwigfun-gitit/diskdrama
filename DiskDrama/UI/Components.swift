@@ -273,4 +273,19 @@ enum RelativeTime {
         guard Date().timeIntervalSince(date) >= 60 else { return "just now" }
         return formatter.localizedString(for: date, relativeTo: Date())
     }
+
+    /// Terse form for dense tables: `2d ago`, `9mo ago`.
+    ///
+    /// Hand-built rather than `RelativeDateTimeFormatter(.abbreviated)`, which
+    /// localizes and would reintroduce the separator mismatch `ByteFormat.count`
+    /// exists to avoid — these sit in a monospaced column beside sizes.
+    static func compact(_ date: Date) -> String {
+        let days = Int(Date().timeIntervalSince(date) / 86_400)
+        switch days {
+        case ..<1:   return "today"
+        case ..<31:  return "\(days)d ago"
+        case ..<365: return "\(days / 30)mo ago"
+        default:     return "\(days / 365)y ago"
+        }
+    }
 }

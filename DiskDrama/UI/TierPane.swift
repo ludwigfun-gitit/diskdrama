@@ -49,6 +49,11 @@ struct TierPane: View {
                 emptyState
             } else {
                 list
+                // F09: the panel describes the selected row, or whatever has
+                // been drilled into beneath it (F13).
+                if let detail = model.detailItem(in: tier) {
+                    ExplanationPanel(model: model, tier: tier, item: detail)
+                }
             }
         }
     }

@@ -326,10 +326,38 @@ enum KnowledgeBase {
                         rebuildCost: result.rebuildCost, owningApp: result.owningApp,
                         confidence: result.confidence))
                 }
-                return (rule, result)
+                return (rule, orphaned(result) ?? result)
             }
         }
         return nil
+    }
+
+    /// F12's failure case: Tier 2 means "the owning app clears this better than I
+    /// could", which stops being true the moment that app is gone. The item is
+    /// then re-tiered to Review first with an explanation that says exactly what
+    /// happened, rather than keeping a tier whose entire premise has evaporated
+    /// and offering an "Open <App>" button that opens nothing.
+    ///
+    /// Deliberately not a guess that the leftovers are safe. The data outlived
+    /// its app; nobody can say what is in there now, and Review first is what the
+    /// blueprint asks for.
+    private static func orphaned(_ result: Classification) -> Classification? {
+        guard result.tier == .appManaged,
+              let app = result.owningApp,
+              let bundleID = app.bundleID,
+              !OwningAppLocator.isInstalled(bundleID: bundleID)
+        else { return nil }
+
+        return Classification(
+            key: result.key,
+            tier: .reviewFirst,
+            title: result.title,
+            whatThisIs: result.whatThisIs,
+            consequence: "\(app.name) isn't installed any more, so nothing is looking after this folder. "
+                + "It's probably leftovers and probably safe — but its app is gone and I can't verify that, so look before you delete.",
+            rebuildCost: result.rebuildCost,
+            owningApp: nil,   // no pointer to an app that isn't there
+            confidence: min(result.confidence, 0.5))
     }
 
     /// The fallback for anything unmatched and large enough to matter.

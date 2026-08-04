@@ -68,7 +68,15 @@ enum DeltaComputer {
     /// other snapshot had it been that size. Without this, raising the floor
     /// between versions would manufacture a wave of phantom "disappeared" rows for
     /// items that simply stopped being written.
-    static func compare(previous: Snapshot, current: Snapshot) -> Delta {
+    ///
+    /// Returns nil when the two scans did not cover the same ground. Changing the
+    /// scan roots (A03 makes them user-configurable) otherwise produces a delta
+    /// claiming everything in the old roots "disappeared" and a net change of tens
+    /// of gigabytes — observed live, −24.1 GB and 205 items gone, none of which
+    /// happened. "I can't compare these" is the only true answer, and the UI
+    /// already renders an absent delta distinctly from an empty one.
+    static func compare(previous: Snapshot, current: Snapshot) -> Delta? {
+        guard Set(previous.rootPaths) == Set(current.rootPaths) else { return nil }
 
         let floor = max(previous.pruneFloorBytes, current.pruneFloorBytes)
 

@@ -132,7 +132,104 @@ final class AppModel {
     }
 
     func select(_ recommendation: Recommendation, in tier: Tier) {
+        guard selectionByTier[tier] != recommendation.path else { return }
         selectionByTier[tier] = recommendation.path
+        resetDetailState(for: tier)
+    }
+
+    // MARK: - Drill-down (F13)
+
+    /// Items descended into, below the selected row. Per tier, like the
+    /// selection — walking three levels into a build folder and losing the trail
+    /// by glancing at another tier would make the feature not worth having.
+    private var drillStackByTier: [Tier: [Recommendation]] = [:]
+
+    /// What the explanation panel is describing: the deepest thing drilled into,
+    /// or the selected row when nothing has been.
+    func detailItem(in tier: Tier) -> Recommendation? {
+        drillStackByTier[tier]?.last ?? selection(in: tier)
+    }
+
+    /// The trail back up, selected row first. One element means no drilling has
+    /// happened and the panel shows no breadcrumb.
+    func breadcrumb(in tier: Tier) -> [Recommendation] {
+        guard let root = selection(in: tier) else { return [] }
+        return [root] + (drillStackByTier[tier] ?? [])
+    }
+
+    /// F13: same recommendation treatment one level down. The child is classified
+    /// through the same knowledge base as anything else — an unrecognised child
+    /// gets the same explicit "I can't tell what this is" rather than inheriting
+    /// its parent's confident explanation, which would be a lie by association.
+    func drill(into entry: DirectoryPreview.Entry, in tier: Tier) {
+        let matched = KnowledgeBase.classify(path: entry.path, name: entry.name)?.result
+            ?? KnowledgeBase.unknown(name: entry.name)
+
+        // A subtree rule matches its children too, so a child would otherwise
+        // inherit the parent's *title* — the panel would read "iOS device support
+        // files" for one specific device folder, and descending would look like
+        // only the numbers changed. The prose still describes what kind of thing
+        // this is and stays; the name is the child's own.
+        let classification = Classification(
+            key: matched.key, tier: matched.tier, title: entry.name,
+            whatThisIs: matched.whatThisIs, consequence: matched.consequence,
+            rebuildCost: matched.rebuildCost, owningApp: matched.owningApp,
+            confidence: matched.confidence)
+
+        let item = Recommendation(
+            path: entry.path, name: entry.name, classification: classification,
+            sizeBytes: entry.sizeBytes, logicalBytes: entry.logicalBytes,
+            fileCount: entry.fileCount, newestModifiedAt: entry.newestModifiedAt)
+
+        drillStackByTier[tier, default: []].append(item)
+        resetDetailState(for: tier, keepingSelection: true)
+    }
+
+    /// Returns to a level in the breadcrumb. Index 0 is the selected row.
+    func popDrill(in tier: Tier, to index: Int) {
+        let stack = drillStackByTier[tier] ?? []
+        guard index < stack.count else { return }
+        drillStackByTier[tier] = Array(stack.prefix(index))
+        resetDetailState(for: tier, keepingSelection: true)
+    }
+
+    private func resetDetailState(for tier: Tier, keepingSelection: Bool = false) {
+        if !keepingSelection { drillStackByTier[tier] = [] }
+        lookInsideOpen = false
+        preview = nil
+        previewPath = nil
+    }
+
+    // MARK: - Look inside (F10)
+
+    var lookInsideOpen = false
+    private(set) var preview: DirectoryPreview.Result?
+    private(set) var isLoadingPreview = false
+    private var previewPath: String?
+
+    func toggleLookInside(for item: Recommendation) {
+        lookInsideOpen.toggle()
+        guard lookInsideOpen, previewPath != item.path else { return }
+
+        previewPath = item.path
+        preview = nil
+        isLoadingPreview = true
+
+        DirectoryPreview.load(path: item.path,
+                              fileCount: item.fileCount,
+                              from: scanEngine.lastResult) { [weak self] result in
+            guard let self, previewPath == item.path else { return }
+            preview = result
+            isLoadingPreview = false
+        }
+    }
+
+    // MARK: - History lookup
+
+    /// The most recent cleanup of this exact path, for the explanation panel's
+    /// "you cleaned this and it came back" line.
+    func lastCleanup(of path: String) -> CleanupEntry? {
+        cleanupLog.first { $0.path == path && $0.restoredAt == nil }
     }
 
     // MARK: - Derived display data

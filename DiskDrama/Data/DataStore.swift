@@ -156,7 +156,7 @@ actor BackgroundStore {
 
         // Delta is computed before the save so `previous` is unambiguously the
         // scan before this one, whatever the history-pruning rule does next.
-        let delta = previous.map { DeltaComputer.compare(previous: $0, current: snapshot) }
+        let delta = previous.flatMap { DeltaComputer.compare(previous: $0, current: snapshot) }
 
         try save(snapshot)
         return delta
