@@ -12,34 +12,11 @@ import Foundation
 /// a surface to maintain.
 enum AnthropicClient {
 
-    /// The item being explained, reduced to what the model needs. Deliberately
-    /// **not** the whole `Recommendation`: no user paths beyond the one folder,
-    /// no scan totals, nothing about the rest of the disk.
-    struct Subject: Sendable {
-        let path: String
-        let name: String
-        let sizeBytes: Int64
-        let fileCount: Int
-        let daysSinceModified: Int?
-        /// What the local knowledge base already concluded, so the model
-        /// refines rather than contradicts it.
-        let localTitle: String
-        let localTier: Tier
-        let localWhatThisIs: String
-    }
-
-    /// The four fields `CachedExplanation` stores — the same shape as a local
-    /// `Classification`, so an AI explanation is a richer version of the same
-    /// thing rather than a parallel format the UI has to special-case.
-    struct Explanation: Sendable, Codable {
-        let whatThisIs: String
-        let consequenceOfDeleting: String
-        let rebuildCost: String?
-        /// The model's own confidence, which the UI shows alongside the local
-        /// one. A confident-sounding paragraph with no confidence attached is
-        /// exactly F09's failure case.
-        let confidence: Double
-    }
+    /// Both types now live on the seam (`ExplanationProvider.swift`) rather than
+    /// here, because they describe the feature rather than this transport. The
+    /// alias keeps `AnthropicClient.Subject` reading naturally at the call sites
+    /// inside this file.
+    typealias Subject = ExplanationSubject
 
     enum Failure: Error, LocalizedError {
         case noAPIKey

@@ -140,7 +140,12 @@ struct ExplanationPanel: View {
             }
             .font(Theme.mono(12.5))
         case .ready:
-            Text("· looked closer")
+            // Named, not just "looked closer". With two possible sources the
+            // reader is entitled to know whether the text they're about to act
+            // on was written on their own machine or in a datacentre — those
+            // have different reliability and different privacy properties, and
+            // the difference is not the app's to hide.
+            Text("· looked closer\(model.explanations.sourceName.map { " · \($0)" } ?? "")")
                 .font(Theme.mono(12.5))
                 .foregroundStyle(Theme.glow)
         case .failed(let reason):
@@ -154,7 +159,7 @@ struct ExplanationPanel: View {
     }
 
     /// The model's answer when it has one, the rule table's otherwise.
-    private var aiExplanation: AnthropicClient.Explanation? {
+    private var aiExplanation: Explanation? {
         if case .ready(let explanation) = model.explanations.state(for: item) {
             return explanation
         }

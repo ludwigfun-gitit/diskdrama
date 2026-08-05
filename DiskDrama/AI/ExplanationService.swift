@@ -30,7 +30,7 @@ final class ExplanationService {
         case unavailable
         case idle
         case loading
-        case ready(AnthropicClient.Explanation)
+        case ready(Explanation)
         case failed(String)
 
         static func == (lhs: State, rhs: State) -> Bool {
@@ -53,7 +53,16 @@ final class ExplanationService {
     /// `states` because a failure should still be retryable.
     private var inFlight: Set<String> = []
 
-    var isConfigured: Bool { APIKeyStore.hasKey }
+    /// Whichever provider is in force, or nil when this Mac can offer neither
+    /// the on-device model nor a configured key. Resolved through the seam so
+    /// this service never knows which one it is talking to.
+    private var provider: (any ExplanationProvider)? { ExplanationProviders.active() }
+
+    var isConfigured: Bool { provider != nil }
+
+    /// Where the current explanations are coming from, for the panel's
+    /// provenance line. Nil when the feature isn't offered at all.
+    var sourceName: String? { provider?.displayName }
 
     func state(for item: Recommendation) -> State {
         guard isConfigured else { return .unavailable }
@@ -64,13 +73,13 @@ final class ExplanationService {
     /// body's `.task` — a cache hit resolves without touching the network, and
     /// a duplicate call while in flight is dropped.
     func requestIfNeeded(for item: Recommendation) {
-        guard isConfigured else { return }
+        guard let provider else { return }
         let fingerprint = item.fingerprint
 
         if let existing = states[fingerprint], existing != .idle { return }
         guard !inFlight.contains(fingerprint) else { return }
 
-        if let cached = readCache(fingerprint) {
+        if let cached = readCache(fingerprint, provider: provider) {
             states[fingerprint] = .ready(cached)
             return
         }
@@ -78,7 +87,7 @@ final class ExplanationService {
         inFlight.insert(fingerprint)
         states[fingerprint] = .loading
 
-        let subject = AnthropicClient.Subject(
+        let subject = ExplanationSubject(
             path: item.path,
             name: item.name,
             sizeBytes: item.sizeBytes,
@@ -86,20 +95,29 @@ final class ExplanationService {
             daysSinceModified: item.daysSinceModified,
             localTitle: item.classification.title,
             localTier: item.tier,
-            localWhatThisIs: item.classification.whatThisIs)
+            localWhatThisIs: item.classification.whatThisIs,
+            localConsequence: item.classification.consequence,
+            localRebuildCost: item.classification.rebuildCost,
+            localConfidence: item.classification.confidence)
 
         Task { [weak self] in
             do {
-                let explanation = try await AnthropicClient.explain(subject)
+                let started = Date()
+                let explanation = try await provider.explain(subject)
                 guard let self else { return }
-                writeCache(fingerprint, explanation)
+                Log.app.notice("""
+                explanation ok — provider=\(provider.identifier, privacy: .public) \
+                seconds=\(String(format: "%.1f", Date().timeIntervalSince(started)), privacy: .public) \
+                confidence=\(String(format: "%.2f", explanation.confidence), privacy: .public)
+                """)
+                writeCache(fingerprint, explanation, provider: provider)
                 states[fingerprint] = .ready(explanation)
                 inFlight.remove(fingerprint)
             } catch {
                 guard let self else { return }
-                let message = (error as? AnthropicClient.Failure)?.errorDescription
+                let message = (error as? LocalizedError)?.errorDescription
                     ?? error.localizedDescription
-                Log.app.error("explanation failed: \(message, privacy: .public)")
+                Log.app.error("explanation failed via \(provider.identifier, privacy: .public): \(message, privacy: .public)")
                 states[fingerprint] = .failed(message)
                 inFlight.remove(fingerprint)
             }
@@ -115,7 +133,7 @@ final class ExplanationService {
 
     // MARK: - Cache
 
-    private func readCache(_ fingerprint: String) -> AnthropicClient.Explanation? {
+    private func readCache(_ fingerprint: String, provider: any ExplanationProvider) -> Explanation? {
         guard let container = DataStore.shared.state.container else { return nil }
         let context = ModelContext(container)
         var descriptor = FetchDescriptor<CachedExplanation>(
@@ -127,10 +145,12 @@ final class ExplanationService {
         // An explanation written by a different model is left in place but not
         // used: the prose came from somewhere else and the row records which
         // model, so silently presenting it as this model's answer would make
-        // `modelIdentifier` a lie.
-        guard row.modelIdentifier == AnthropicClient.model else { return nil }
+        // `modelIdentifier` a lie. With two providers this stopped being
+        // theoretical — an on-device answer and a cloud answer for the same
+        // folder are genuinely different text with different reliability.
+        guard row.modelIdentifier == provider.identifier else { return nil }
 
-        return AnthropicClient.Explanation(
+        return Explanation(
             whatThisIs: row.whatThisIs,
             consequenceOfDeleting: row.consequenceOfDeleting,
             rebuildCost: row.rebuildCost,
@@ -139,7 +159,8 @@ final class ExplanationService {
 
     /// A cache write that fails costs one repeated API call later. It is not
     /// worth failing the explanation the user is currently reading over.
-    private func writeCache(_ fingerprint: String, _ explanation: AnthropicClient.Explanation) {
+    private func writeCache(_ fingerprint: String, _ explanation: Explanation,
+                            provider: any ExplanationProvider) {
         guard let container = DataStore.shared.state.container else { return }
         let context = ModelContext(container)
 
@@ -158,7 +179,7 @@ final class ExplanationService {
             consequenceOfDeleting: explanation.consequenceOfDeleting,
             rebuildCost: explanation.rebuildCost,
             confidence: explanation.confidence,
-            modelIdentifier: AnthropicClient.model))
+            modelIdentifier: provider.identifier))
 
         do {
             try context.save()
