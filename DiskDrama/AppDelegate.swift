@@ -15,6 +15,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // open and back again on close.
         NSApp.setActivationPolicy(.accessory)
 
+        // Built now, drawn later. An accessory app shows no menu bar, but the
+        // window can open at any moment and flip the policy to `.regular` — and
+        // key equivalents are matched against this menu whether it is on screen
+        // or not.
+        AppMenu.install(target: self,
+                        settings: #selector(showSettingsFromMenu),
+                        scan: #selector(scanFromMenu))
 
         // The monitor starts first and deliberately does not depend on the store.
         // If persistence is broken the app degrades to monitor-only rather than
@@ -126,6 +133,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// A09's main surface. Also the target of the dropdown's ⌘O.
+    @objc private func showSettingsFromMenu() {
+        openMainWindow()
+        model.isShowingSettings = true
+    }
+
+    @objc private func scanFromMenu() {
+        beginScan()
+    }
+
     private func openMainWindow() {
         mainWindow?.show()
     }
