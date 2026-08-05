@@ -132,10 +132,7 @@ struct OnboardingSheet: View {
 
     private var accessStatus: some View {
         HStack(spacing: 14) {
-            Circle()
-                .fill(hasAccess ? Theme.accent : Theme.glow)
-                .frame(width: 8, height: 8)
-                .shadow(color: hasAccess ? Theme.accent : Theme.glow, radius: 4)
+            GlowDot(size: 8, color: hasAccess ? Theme.accent : Theme.glow)
             Text(hasAccess
                  ? "Access granted — I can see everything now."
                  : "Waiting for access — I'll notice the moment you grant it.")

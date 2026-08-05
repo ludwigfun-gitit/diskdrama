@@ -251,10 +251,15 @@ struct SettingsSheet: View {
     /// describing an arrangement the app isn't using.
     private var sourceStatus: some View {
         HStack(alignment: .top, spacing: 9) {
-            Circle()
-                .fill(model.explanations.sourceName == nil ? Theme.text3 : Theme.glow)
-                .frame(width: 7, height: 7)
-                .padding(.top, 5)
+            Group {
+                if model.explanations.sourceName == nil {
+                    // Nothing is running, so nothing should look lit.
+                    Circle().fill(Theme.text3).frame(width: 7, height: 7)
+                } else {
+                    GlowDot(size: 7)
+                }
+            }
+            .padding(.top, 5)
             Text(sourceDescription)
                 .font(Theme.body(12.5)).lineSpacing(3)
                 .foregroundStyle(Theme.text)

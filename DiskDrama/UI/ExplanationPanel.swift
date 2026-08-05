@@ -103,12 +103,9 @@ struct ExplanationPanel: View {
                 .foregroundStyle(Theme.text3)
 
             if confidence.showsLiveDot {
-                // The cyan is deliberately ~40° of hue from the accent so a
+                // The cyan is deliberately ~33° of hue from the accent so a
                 // confidence signal never reads as a button.
-                Circle()
-                    .fill(Theme.glow)
-                    .frame(width: 5, height: 5)
-                    .shadow(color: Theme.glow, radius: 2.5)
+                GlowDot(size: 5)
                 Text(confidence.label)
                     .font(Theme.mono(12.5))
                     .foregroundStyle(Theme.glow)

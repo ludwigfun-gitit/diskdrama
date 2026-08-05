@@ -269,6 +269,74 @@ enum PathDisplay {
     }
 }
 
+/// The live-status dot, as a light source rather than a filled circle.
+///
+/// A flat `Circle().fill(Theme.glow)` with a shadow behind it reads as a
+/// sticker: uniform colour, hard edge, and a drop shadow that sits *under* the
+/// shape rather than radiating from it. What the design asks for is the BLOO
+/// eyes — something lit from inside.
+///
+/// Three layers do that:
+///
+/// 1. A wide, very soft halo that carries the colour outward and vanishes.
+/// 2. The dot itself, a radial ramp from a white-hot centre out through the
+///    colour to a transparent rim, so the edge dissolves instead of stopping.
+/// 3. A small white core, blurred, sitting on top as the actual bright point.
+///
+/// The layout footprint stays exactly `size`. The halo is drawn by an overlay,
+/// which is unclipped and does not participate in layout — so this drops into
+/// the existing rows without shifting a single one of them.
+struct GlowDot: View {
+
+    var size: CGFloat = 6
+    var color: Color = Theme.glow
+
+    var body: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    stops: [
+                        .init(color: .white,               location: 0.00),
+                        .init(color: .white.opacity(0.88), location: 0.20),
+                        .init(color: color.opacity(0.95),  location: 0.58),
+                        .init(color: color.opacity(0.45),  location: 0.82),
+                        .init(color: color.opacity(0.00),  location: 1.00),
+                    ],
+                    center: .center, startRadius: 0, endRadius: size / 2)
+            )
+            .frame(width: size, height: size)
+            .blur(radius: size * 0.05)
+            .overlay {
+                // The bright point. Blurred so it bleeds into the ramp beneath
+                // rather than sitting on it as a hard white disc.
+                Circle()
+                    .fill(.white)
+                    .frame(width: size * 0.38, height: size * 0.38)
+                    .blur(radius: size * 0.22)
+            }
+            .background {
+                // Drawn behind and allowed to spill past the frame — this is
+                // the part that makes it read as emitting light. Two stacked
+                // falloffs, because a single gradient either stops too abruptly
+                // or washes out the middle.
+                ZStack {
+                    Circle()
+                        .fill(RadialGradient(
+                            colors: [color.opacity(0.55), color.opacity(0)],
+                            center: .center, startRadius: size * 0.15, endRadius: size * 1.35))
+                        .frame(width: size * 2.7, height: size * 2.7)
+                    Circle()
+                        .fill(RadialGradient(
+                            colors: [color.opacity(0.22), color.opacity(0)],
+                            center: .center, startRadius: size * 0.30, endRadius: size * 2.10))
+                        .frame(width: size * 4.2, height: size * 4.2)
+                }
+                .allowsHitTesting(false)
+            }
+            .accessibilityHidden(true)
+    }
+}
+
 /// `Formatter` subclasses are not `Sendable`, and building one per row is
 /// measurable on a long history list — so the shared instance is pinned to the
 /// main actor, which is the only place anything here renders.
