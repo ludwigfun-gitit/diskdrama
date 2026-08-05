@@ -204,7 +204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // A stall outranks progress: when the walk is wedged, the last progress
         // figure is stale and showing it is what makes an app look frozen.
         if let stall = scanEngine.stall {
-            let folder = (stall.path as NSString).lastPathComponent
+            let folder = PathDisplay.tail(stall.path)
             menubar?.showScanStatus(
                 stall.isAbandonable
                     ? "Still reading “\(folder)” — \(Int(stall.seconds))s. It may be very large."

@@ -83,7 +83,7 @@ struct MainWindow: View {
     @ViewBuilder
     private var scanStatus: some View {
         if let stall = model.scanEngine.stall {
-            let folder = (stall.path as NSString).lastPathComponent
+            let folder = PathDisplay.tail(stall.path)
             statusText(stall.isAbandonable
                 ? "Still reading “\(folder)” — \(Int(stall.seconds))s"
                 : "Reading “\(folder)”…")

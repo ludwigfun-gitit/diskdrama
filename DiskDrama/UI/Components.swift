@@ -249,6 +249,24 @@ enum PathDisplay {
         }
         return path
     }
+
+    /// The last few components, for status text.
+    ///
+    /// A bare `lastPathComponent` is what the scan status used to show, and it
+    /// produced lines like `Still reading "v5" — 42s`. "v5" is a real folder —
+    /// build tools love version-numbered cache directories — but on its own it
+    /// identifies nothing, so the one moment the user most wants to know what
+    /// the app is stuck on is the moment it tells them least. The full path is
+    /// too long for a status line; the tail is enough to recognise it.
+    /// Shortens *first*, so a path that is already brief keeps its "~" and is
+    /// left alone — eliding `~/Downloads` into `…/ludwigfun/Downloads` would be
+    /// longer, uglier and less recognisable than the thing it replaced.
+    static func tail(_ path: String, count: Int = 2) -> String {
+        let shortened = short(path)
+        let parts = shortened.split(separator: "/")
+        guard parts.count > count else { return shortened }
+        return "…/" + parts.suffix(count).joined(separator: "/")
+    }
 }
 
 /// `Formatter` subclasses are not `Sendable`, and building one per row is
