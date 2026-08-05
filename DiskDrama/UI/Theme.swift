@@ -52,9 +52,16 @@ enum Theme {
     /// permission pulse, explanation-source label.
     ///
     /// One value in both appearances, by explicit design call (Ludwig,
-    /// 2026-08-04). The token used to carry a darkened light-mode variant for
-    /// contrast on white; the brief is now the literal colour everywhere, so the
-    /// dark/light split is gone rather than quietly reintroduced.
+    /// 2026-08-04, reaffirmed after a darkened light variant was tried and
+    /// rejected as too dark). The token used to carry a darkened light-mode
+    /// value; the brief is the literal colour everywhere, so the dark/light
+    /// split is gone rather than quietly reintroduced.
+    ///
+    /// Known and accepted: on light `panel` (#E3E3E7) this measures 1.12:1, so
+    /// the two *text* uses — the confidence label and the source label — are
+    /// faint there. That is a deliberate call in favour of the colour, not an
+    /// oversight. Don't "fix" it by re-splitting the token; raise it as a design
+    /// question instead.
     ///
     /// Still ~33° of hue from `accent` (184° vs 217°), which is what keeps a
     /// status signal from reading as a button.
