@@ -110,13 +110,45 @@ struct ExplanationPanel: View {
             }
             VStack(alignment: .leading, spacing: 3) {
                 measurements(separator: false)
-                HStack(spacing: 6) {
-                    confidenceBadge
-                    explanationSource
-                }
+                wrappedStatusLine
             }
         }
     }
+
+    /// The wrapped second line, set as a hanging bullet.
+    ///
+    /// The dot is the bullet and sits out in the margin; the alignment that
+    /// matters is the label's, which lines up with the measurements above it.
+    /// Aligning on the dot instead — which is what a plain leading alignment
+    /// does — pushes every word of the line 13pt right of the text it belongs
+    /// under, and reads as a stray indent rather than a continuation.
+    @ViewBuilder
+    private var wrappedStatusLine: some View {
+        if confidence.showsLiveDot {
+            HStack(spacing: 0) {
+                GlowDot(size: Self.statusDotSize)
+                Text(confidence.label)
+                    .font(Theme.mono(12.5))
+                    .foregroundStyle(Theme.glow)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.leading, Self.statusDotGap)
+                explanationSource
+                    .padding(.leading, 6)
+            }
+            .alignmentGuide(.leading) { _ in Self.statusDotSize + Self.statusDotGap }
+        } else {
+            HStack(spacing: 6) {
+                confidenceBadge
+                explanationSource
+            }
+        }
+    }
+
+    private static let statusDotSize: CGFloat = 5
+    /// Wider than the row's default spacing: GlowDot's halo spills past its
+    /// frame and at 6pt it sat on the first letter of the label.
+    private static let statusDotGap: CGFloat = 8
 
     private func measurements(separator: Bool) -> some View {
         Text(metadataText + (separator ? " ·" : ""))
@@ -132,8 +164,8 @@ struct ExplanationPanel: View {
             // Wider than the row's spacing: GlowDot's halo spills well past its
             // 5pt frame, so at the shared spacing the glow sat on the first
             // letter of the label.
-            HStack(spacing: 8) {
-                GlowDot(size: 5)
+            HStack(spacing: Self.statusDotGap) {
+                GlowDot(size: Self.statusDotSize)
                 Text(confidence.label)
                     .font(Theme.mono(12.5))
                     .foregroundStyle(Theme.glow)
