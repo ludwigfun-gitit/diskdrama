@@ -129,28 +129,60 @@ final class MenubarController {
         return menu
     }
 
-    /// The status item's glyph, built once and reused — `render()` runs on every
-    /// poll, and rebuilding an `NSImage` on each one to hand back an identical
-    /// picture is pure waste.
+    /// The status item's glyph, one variant per state, each built once.
     ///
-    /// Template rendering is what makes this correct in both appearances: AppKit
-    /// draws a template image using the menu bar's own foreground colour, so a
-    /// light and a dark menu bar are handled without the app knowing which it is
-    /// on. That is also why the emoji it replaces had to go — emoji carry their
-    /// own colour and ignore appearance entirely.
-    private static let statusIcon: NSImage? = {
-        let image = NSImage(systemSymbolName: "internaldrive.fill",
-                            accessibilityDescription: "Disk space")
-        image?.isTemplate = true
-        return image
-    }()
+    /// The first version set a single template image and coloured it with
+    /// `contentTintColor`. The property was assigned correctly and did nothing:
+    /// `NSStatusBarButton` draws a **template** image using the menu bar's own
+    /// foreground colour, so the icon stayed black on a light bar and white on a
+    /// dark one no matter what tint was set. The warning states were invisible.
+    ///
+    /// So a template image is used only for the normal state, where following
+    /// the menu bar's appearance is exactly right. The warning states use a
+    /// non-template image with the colour baked into the symbol via a palette
+    /// configuration, which AppKit has no reason to override.
+    private static func makeIcon(_ color: NSColor?) -> NSImage? {
+        guard let base = NSImage(systemSymbolName: "internaldrive.fill",
+                                 accessibilityDescription: "Disk space") else { return nil }
+        guard let color else {
+            base.isTemplate = true
+            return base
+        }
+        let coloured = base.withSymbolConfiguration(.init(paletteColors: [color]))
+        // Template rendering would discard the palette colour — this is the
+        // whole point of the variant.
+        coloured?.isTemplate = false
+        return coloured
+    }
 
-    private func applyStatusIcon(to button: NSStatusBarButton) {
-        button.image = Self.statusIcon
-        // Both the glyph and the byte count are shown, so the position has to be
-        // stated rather than inherited.
+    private static let normalIcon   = makeIcon(nil)
+    private static let lowIcon      = makeIcon(.systemOrange)
+    private static let criticalIcon = makeIcon(.systemRed)
+
+    /// Applies both halves of the state signal. The title has the same problem
+    /// as the image — a plain `title` is drawn in the menu bar's colour — so a
+    /// warning state sets an attributed title carrying the colour, and the
+    /// normal state sets a plain one and lets AppKit pick.
+    private func applyStatusItem(to button: NSStatusBarButton, text: String, color: NSColor?) {
+        switch color {
+        case .some(let c) where c == .systemRed: button.image = Self.criticalIcon
+        case .some:                              button.image = Self.lowIcon
+        case .none:                              button.image = Self.normalIcon
+        }
         button.imagePosition = .imageLeading
         button.imageHugsTitle = true
+
+        if let color {
+            button.attributedTitle = NSAttributedString(
+                string: text,
+                attributes: [.foregroundColor: color,
+                             .font: NSFont.systemFont(ofSize: NSFont.systemFontSize)])
+        } else {
+            // Assigning `title` replaces the attributed string, so returning to
+            // normal genuinely drops the previous colour rather than keeping a
+            // stale red one.
+            button.title = text
+        }
     }
 
     /// A text capacity bar. A menu item cannot host an arbitrary view cheaply,
@@ -190,16 +222,12 @@ final class MenubarController {
         let free = info.availableBytes
 
         if let button = statusItem?.button {
-            applyStatusIcon(to: button)
-            // The state signal moved from the glyph itself to its tint. A
-            // template image takes the tint colour when one is set and follows
-            // the menu bar's own appearance when it is nil, so "normal" needs
-            // no colour of its own — which is the point, since a permanently
+            // Normal deliberately has no colour of its own — a permanently
             // coloured menu bar icon stops reading as a warning.
-            button.contentTintColor = free < settings.criticalThresholdBytes ? .systemRed
-                                    : free < settings.lowThresholdBytes    ? .systemOrange
-                                    : nil
-            button.title = ByteFormat.compact(free)
+            let color: NSColor? = free < settings.criticalThresholdBytes ? .systemRed
+                                : free < settings.lowThresholdBytes    ? .systemOrange
+                                : nil
+            applyStatusItem(to: button, text: ByteFormat.compact(free), color: color)
             button.toolTip = "Free: \(ByteFormat.compact(free)) of \(ByteFormat.compact(info.totalBytes))"
         }
 
@@ -260,12 +288,10 @@ final class MenubarController {
     /// never a stale number presented as current.
     private func renderUnreadable() {
         if let button = statusItem?.button {
-            applyStatusIcon(to: button)
             // No threshold to signal — an unreadable volume is not a "you are
             // running out" state, and colouring it red would say something the
             // app does not know.
-            button.contentTintColor = nil
-            button.title = "—"
+            applyStatusItem(to: button, text: "—", color: nil)
             button.toolTip = "DiskDrama can't read the boot volume right now."
         }
         headlineItem?.attributedTitle = NSAttributedString(
