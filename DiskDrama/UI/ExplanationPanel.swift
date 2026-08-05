@@ -82,102 +82,48 @@ struct ExplanationPanel: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Text(item.classification.title)
-                .font(Theme.display(15))
-                .foregroundStyle(Theme.text)
-            metadata
-            Spacer(minLength: 0)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(item.classification.title)
+                    .font(Theme.display(15))
+                    .foregroundStyle(Theme.text)
+                measurements
+                Spacer(minLength: 0)
+            }
+            statusLine
         }
     }
 
-    /// Size, scale, and how sure the app is — the last of which F09 requires and
-    /// most tools omit entirely.
-    ///
-    /// Wraps as a unit, not as text. Left to itself the measurement string broke
-    /// mid-phrase and dropped its trailing separator onto a line of its own while
-    /// the cyan stayed up on the first — three fragments on two lines, none of
-    /// them aligned. `ViewThatFits` picks the whole row when it fits and
-    /// otherwise moves the cyan down as one piece, left-aligned under the
-    /// measurements it belongs to, with the separator dropped since nothing
-    /// follows it on that line any more.
-    private var metadata: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 6) {
-                measurements(separator: true)
-                confidenceBadge
-                explanationSource
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                measurements(separator: false)
-                wrappedStatusLine
-            }
-        }
-    }
-
-    /// The wrapped second line, set as a hanging bullet.
-    ///
-    /// The dot is the bullet and sits out in the margin; the alignment that
-    /// matters is the label's, which lines up with the measurements above it.
-    /// Aligning on the dot instead — which is what a plain leading alignment
-    /// does — pushes every word of the line 13pt right of the text it belongs
-    /// under, and reads as a stray indent rather than a continuation.
-    @ViewBuilder
-    private var wrappedStatusLine: some View {
-        if confidence.showsLiveDot {
-            HStack(spacing: 0) {
-                GlowDot(size: Self.statusDotSize)
-                Text(confidence.label)
-                    .font(Theme.mono(12.5))
-                    .foregroundStyle(Theme.glow)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .padding(.leading, Self.statusDotGap)
-                explanationSource
-                    .padding(.leading, 6)
-            }
-            .alignmentGuide(.leading) { _ in Self.statusDotSize + Self.statusDotGap }
-        } else {
-            HStack(spacing: 6) {
-                confidenceBadge
-                explanationSource
-            }
-        }
-    }
-
-    private static let statusDotSize: CGFloat = 5
-    /// Wider than the row's default spacing: GlowDot's halo spills past its
-    /// frame and at 6pt it sat on the first letter of the label.
-    private static let statusDotGap: CGFloat = 8
-
-    private func measurements(separator: Bool) -> some View {
-        Text(metadataText + (separator ? " ·" : ""))
+    /// Size and scale, on the title's line.
+    private var measurements: some View {
+        Text(metadataText)
             .font(Theme.mono(12.5))
             .foregroundStyle(Theme.text3)
             .lineLimit(1)
             .fixedSize()
     }
 
-    @ViewBuilder
-    private var confidenceBadge: some View {
-        if confidence.showsLiveDot {
-            // Wider than the row's spacing: GlowDot's halo spills well past its
-            // 5pt frame, so at the shared spacing the glow sat on the first
-            // letter of the label.
-            HStack(spacing: Self.statusDotGap) {
-                GlowDot(size: Self.statusDotSize)
-                Text(confidence.label)
-                    .font(Theme.mono(12.5))
-                    .foregroundStyle(Theme.glow)
+    /// Confidence and source, on their own line at the panel's left edge.
+    ///
+    /// Always its own row, never conditionally wrapped. This chased a
+    /// better-looking single line through three layouts — inline, then wrapping
+    /// as a unit, then a hanging bullet — and every one of them put the cyan
+    /// somewhere different depending on the window width. A line that starts in
+    /// the same place at every size is worth more than one that occasionally
+    /// saves a row.
+    private var statusLine: some View {
+        HStack(spacing: 6) {
+            if confidence.showsLiveDot {
+                GlowDot(size: 5)
+                    .padding(.trailing, 2)   // the halo spills past the 5pt frame
             }
-            .lineLimit(1)
-            .fixedSize()
-        } else {
             Text(confidence.label)
                 .font(Theme.mono(12.5))
-                .foregroundStyle(Theme.text3)
+                .foregroundStyle(confidence.showsLiveDot ? Theme.glow : Theme.text3)
                 .lineLimit(1)
                 .fixedSize()
+            explanationSource
+            Spacer(minLength: 0)
         }
     }
 
