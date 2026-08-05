@@ -48,7 +48,8 @@ enum KnowledgeBase {
             title: "Xcode derived data",
             whatThisIs: "Intermediate build output, indexes and caches Xcode writes while you work. One folder per project, and Xcode never cleans them up on its own.",
             consequence: "Xcode rebuilds it automatically the next time you open or build each project. Nothing you wrote lives here.",
-            rebuildCost: "The next build of each affected project is a full one — minutes, not seconds."
+            rebuildCost: "The next build of each affected project is a full one — minutes, not seconds.",
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -59,7 +60,8 @@ enum KnowledgeBase {
             whatThisIs: "The database behind jump-to-definition and autocomplete. It grows with every build and is never pruned — these routinely reach millions of tiny files.",
             consequence: "Xcode reindexes the project in the background the next time you open it. No source code is affected.",
             rebuildCost: "Indexing runs for a few minutes after you next open the project; autocomplete is incomplete until it finishes.",
-            minimumSizeBytes: 50_000_000
+            minimumSizeBytes: 50_000_000,
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -78,7 +80,8 @@ enum KnowledgeBase {
             tier: .safe,
             title: "Simulator caches",
             whatThisIs: "Cached runtime data for the iOS/watchOS simulators.",
-            consequence: "Regenerated on demand. Simulator devices and their installed apps are stored elsewhere and are not touched."
+            consequence: "Regenerated on demand. Simulator devices and their installed apps are stored elsewhere and are not touched.",
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -102,7 +105,8 @@ enum KnowledgeBase {
             whatThisIs: "Third-party JavaScript packages installed for one project. Reconstructable in full from that project's package.json and lockfile.",
             consequence: "Restored by running npm install (or yarn/pnpm) in the project again.",
             rebuildCost: "A reinstall takes seconds to a few minutes, and needs a network connection.",
-            minimumSizeBytes: 50_000_000
+            minimumSizeBytes: 50_000_000,
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -111,7 +115,8 @@ enum KnowledgeBase {
             tier: .safe,
             title: "npm download cache",
             whatThisIs: "npm's copy of every package tarball it has downloaded, kept so reinstalls skip the network.",
-            consequence: "Refills itself as you install packages. Nothing breaks; the next few installs are slower."
+            consequence: "Refills itself as you install packages. Nothing breaks; the next few installs are slower.",
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -120,7 +125,8 @@ enum KnowledgeBase {
             tier: .safe,
             title: "Yarn download cache",
             whatThisIs: "Yarn's cached package downloads.",
-            consequence: "Refills as you install. Next installs go to the network."
+            consequence: "Refills as you install. Next installs go to the network.",
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -129,7 +135,8 @@ enum KnowledgeBase {
             tier: .safe,
             title: "pnpm content store",
             whatThisIs: "pnpm's shared package store, hard-linked into each project rather than copied.",
-            consequence: "Refetched on the next install in any project that needs those packages."
+            consequence: "Refetched on the next install in any project that needs those packages.",
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -138,7 +145,8 @@ enum KnowledgeBase {
             tier: .safe,
             title: "Swift Package Manager cache",
             whatThisIs: "Checked-out clones of Swift packages your projects depend on.",
-            consequence: "Re-cloned from their repositories on the next resolve."
+            consequence: "Re-cloned from their repositories on the next resolve.",
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -149,7 +157,8 @@ enum KnowledgeBase {
             whatThisIs: "Compiled objects and resolved dependencies for a Swift package.",
             consequence: "Recreated by the next swift build.",
             rebuildCost: "One full rebuild of that package.",
-            minimumSizeBytes: 50_000_000
+            minimumSizeBytes: 50_000_000,
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -160,7 +169,8 @@ enum KnowledgeBase {
             whatThisIs: "Compiled artifacts for a Cargo project. Notoriously large — debug builds keep every intermediate.",
             consequence: "Recreated by the next cargo build.",
             rebuildCost: "A full rebuild, which for a large crate graph can be many minutes.",
-            confidence: 0.85
+            confidence: 0.85,
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -169,7 +179,8 @@ enum KnowledgeBase {
             tier: .safe,
             title: "Cargo download cache",
             whatThisIs: "Downloaded crate archives kept for reuse across projects.",
-            consequence: "Re-downloaded on the next build that needs them."
+            consequence: "Re-downloaded on the next build that needs them.",
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -178,7 +189,8 @@ enum KnowledgeBase {
             tier: .safe,
             title: "Gradle cache",
             whatThisIs: "Downloaded dependencies and build caches for Gradle projects.",
-            consequence: "Rebuilt and re-downloaded on the next Gradle build."
+            consequence: "Rebuilt and re-downloaded on the next Gradle build.",
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -188,7 +200,8 @@ enum KnowledgeBase {
             title: "Maven local repository",
             whatThisIs: "Every Java dependency Maven has downloaded, across all projects.",
             consequence: "Re-downloaded as builds need them. Locally-installed artifacts that were never published anywhere would be lost.",
-            confidence: 0.8
+            confidence: 0.8,
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -197,7 +210,8 @@ enum KnowledgeBase {
             tier: .safe,
             title: "pip download cache",
             whatThisIs: "Cached Python wheels and source archives.",
-            consequence: "Re-downloaded on the next pip install."
+            consequence: "Re-downloaded on the next pip install.",
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -207,7 +221,8 @@ enum KnowledgeBase {
             title: "Python bytecode cache",
             whatThisIs: "Compiled bytecode Python writes next to your source.",
             consequence: "Regenerated automatically the next time the code runs.",
-            minimumSizeBytes: 20_000_000
+            minimumSizeBytes: 20_000_000,
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -216,7 +231,8 @@ enum KnowledgeBase {
             tier: .safe,
             title: "Homebrew download cache",
             whatThisIs: "Downloaded bottles and source archives from brew installs and upgrades.",
-            consequence: "Re-downloaded if needed. `brew cleanup` does the same job."
+            consequence: "Re-downloaded if needed. `brew cleanup` does the same job.",
+            isAtomicRegenerable: true
         ),
 
         ClassificationRule(
@@ -225,7 +241,8 @@ enum KnowledgeBase {
             tier: .safe,
             title: "CocoaPods cache",
             whatThisIs: "Cached pod specs and downloaded pod sources.",
-            consequence: "Re-downloaded on the next pod install."
+            consequence: "Re-downloaded on the next pod install.",
+            isAtomicRegenerable: true
         ),
 
         // ── Tier 2 — app-managed ────────────────────────────────────────────

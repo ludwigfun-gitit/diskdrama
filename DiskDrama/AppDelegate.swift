@@ -179,6 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // moment the "granted, but the results predate it" banner has to
             // stand down.
             model.refreshAccessState()
+
             refreshMenubarSummary()
         }
         menubar?.showScanStatus("Scanning…", canStop: true)

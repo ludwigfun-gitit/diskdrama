@@ -112,15 +112,37 @@ final class AppModel {
     var deletionError: String?
 
     func presentDeleteSheet(for item: Recommendation) {
-        moveToTrash = Settings.shared.defaultDeletionMode == .trash
+        moveToTrash = Self.defaultsToTrash(for: [item])
         deletionError = nil
         activeSheet = .delete(item)
     }
 
     func presentBatchSheet(for tier: Tier) {
-        moveToTrash = Settings.shared.defaultDeletionMode == .trash
+        moveToTrash = Self.defaultsToTrash(for: items(in: tier))
         deletionError = nil
         activeSheet = .batchClean(tier)
+    }
+
+    /// Seeds the confirmation sheet's Trash toggle.
+    ///
+    /// Normally the global setting. The exception is a job made up entirely of
+    /// regenerable build output: Xcode and npm rebuild those unprompted with
+    /// nothing of the user's inside, and `trashItem` does per-item "Put Back"
+    /// bookkeeping that turns a multi-million-file cache into a very long wait
+    /// for a safety net that protects nothing.
+    ///
+    /// **Every** item has to qualify. A batch holding one ordinary folder gets
+    /// the ordinary default, because the cost of being wrong is not symmetric —
+    /// a needless trip through the Trash wastes time, a needless permanent
+    /// delete cannot be undone.
+    ///
+    /// This is the seed only. `TrashToggle` stays live, and the global setting
+    /// is untouched.
+    private static func defaultsToTrash(for items: [Recommendation]) -> Bool {
+        let settingSaysTrash = Settings.shared.defaultDeletionMode == .trash
+        guard settingSaysTrash else { return false }
+        guard !items.isEmpty else { return true }
+        return !items.allSatisfy(\.classification.isAtomicRegenerable)
     }
 
     /// F14. Returns true when the item actually went.

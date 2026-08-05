@@ -6,6 +6,17 @@ import Foundation
 /// preflight's two-layer split, tier classification happens for the whole tree at
 /// scan time, and the Anthropic API is only ever asked for the deeper per-item
 /// prose of F09, on first view, for items the user actually opens.
+extension Classification {
+    /// Whether the rule behind this classification marks the folder as one
+    /// regenerable unit. Looked up rather than stored so the flag has exactly
+    /// one home — `KnowledgeBase.rules` — and a classification restored from an
+    /// older snapshot picks up today's answer rather than the one that was true
+    /// when it was written.
+    var isAtomicRegenerable: Bool {
+        KnowledgeBase.rulesByKey[key]?.isAtomicRegenerable ?? false
+    }
+}
+
 struct Classification: Sendable {
     /// Stable identifier for the rule that matched. Doubles as the cache key that
     /// lets a generated explanation survive across scans.
@@ -96,6 +107,27 @@ struct ClassificationRule: Sendable {
     /// smaller size than others.
     let minimumSizeBytes: Int64
 
+    /// When true, the matched subtree needs no per-file detail and nothing
+    /// inside it is worth preserving.
+    ///
+    /// Two consequences, both resting on the same fact — that the whole folder is
+    /// a single regenerable unit produced by a tool, not a container of things a
+    /// person made:
+    ///
+    /// - **Scanning** sums it without building a `ScanNode` per subdirectory.
+    ///   The classifier already knows what these are from the path alone, before
+    ///   touching the disk, so the structure the walk would otherwise build is
+    ///   detail nobody will ever look at.
+    /// - **Deleting** defaults to permanent rather than the Trash. Trashing a
+    ///   multi-million-file cache costs per-item "Put Back" bookkeeping for a
+    ///   safety net nobody needs on something Xcode rebuilds unprompted.
+    ///
+    /// Deliberately *not* set on `generic.caches` (non-terminal, keeps
+    /// descending to classify case by case), on anything `.reviewFirst`, or on
+    /// `.appManaged` items, whose owning app — not DiskDrama — decides what
+    /// inside them is disposable.
+    let isAtomicRegenerable: Bool
+
     /// When true, matching stops here and children are not examined.
     ///
     /// Without this the app would recommend `DerivedData` *and* each of the forty
@@ -106,7 +138,8 @@ struct ClassificationRule: Sendable {
     init(key: String, matcher: PathMatcher, tier: Tier, title: String,
          whatThisIs: String, consequence: String, rebuildCost: String? = nil,
          owningApp: OwningApp? = nil, confidence: Double = 0.95,
-         minimumSizeBytes: Int64 = 100_000_000, isTerminal: Bool = true) {
+         minimumSizeBytes: Int64 = 100_000_000, isTerminal: Bool = true,
+         isAtomicRegenerable: Bool = false) {
         self.key = key
         self.matcher = matcher
         self.tier = tier
@@ -118,6 +151,7 @@ struct ClassificationRule: Sendable {
         self.confidence = confidence
         self.minimumSizeBytes = minimumSizeBytes
         self.isTerminal = isTerminal
+        self.isAtomicRegenerable = isAtomicRegenerable
     }
 
     func classification(for path: String, name: String) -> Classification? {
