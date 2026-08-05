@@ -128,6 +128,12 @@ enum FileTreeWalker {
             : Set(FullDiskAccess.protectedPaths)
         let skipSet = exclusions.union(protectedSkips)
 
+        // The rules whose whole subtree is one regenerable unit, filtered once
+        // rather than per directory. Consulting the full rule table in the walk
+        // loop would be the classifier's job done in the hot path; this is a
+        // handful of deterministic path patterns.
+        let atomicRules = KnowledgeBase.rules.filter(\.isAtomicRegenerable)
+
         for root in roots {
             guard control.waitIfPausedAndContinue() else {
                 return cancelled(startedAt: startedAt, roots: rootNodes,
@@ -207,6 +213,63 @@ enum FileTreeWalker {
                     }
                     if entry.pointee.fts_level == 0 { continue }  // the root itself, already on the stack
 
+                    let name = (path as NSString).lastPathComponent
+
+                    // Fast path: a folder the knowledge base already recognises,
+                    // from the path alone, as one regenerable unit.
+                    //
+                    // Everything below it is summed without a `ScanNode` per
+                    // subdirectory. Every file is still visited — there is no
+                    // OS-level "size of this tree" on APFS, so that floor is not
+                    // avoidable — but the Swift-side allocation and bookkeeping
+                    // for structure nobody will ever open is.
+                    //
+                    // Only at `fts_level > 0`, and that matters: F10's "Look
+                    // inside" re-walks a single directory with that directory as
+                    // the root, and it needs the children. A caller asking about
+                    // this path specifically wants the detail; a walk merely
+                    // passing through it does not.
+                    if !atomicRules.isEmpty,
+                       atomicRules.contains(where: { $0.matcher.matches(path: path, name: name) }) {
+                        control.entering(path)
+                        let started = Date()
+                        fts_set(fts, entry, FTS_SKIP)
+
+                        let sum = sumAtomicSubtree(
+                            root: path, skipSet: skipSet, protectedSkips: protectedSkips,
+                            hasFullDiskAccess: hasFullDiskAccess, control: control,
+                            visited: &visited, bytesSeen: &bytesSeen,
+                            seenHardLinks: &seenHardLinks, blindSpots: &blindSpots,
+                            lastProgressAt: &lastProgressAt, onProgress: onProgress)
+
+                        guard !sum.wasCancelled else {
+                            return cancelled(startedAt: startedAt, roots: rootNodes,
+                                             blindSpots: blindSpots, visited: visited)
+                        }
+
+                        let atomic = ScanNode(path: path, name: name,
+                                              depth: Int(entry.pointee.fts_level),
+                                              parent: stack.last)
+                        atomic.sizeBytes = sum.sizeBytes
+                        atomic.logicalBytes = sum.logicalBytes
+                        atomic.fileCount = sum.fileCount
+                        atomic.newestModifiedAt = sum.newestModifiedAt
+                        stack.last?.children.append(atomic)
+                        // Rolled up here rather than at post-order, because the
+                        // post-order visit for this directory is deliberately
+                        // ignored — nothing was pushed for it.
+                        atomic.accumulateIntoParent()
+
+
+                        // One finding for the whole unit, not one per
+                        // subdirectory inside it.
+                        let elapsed = Date().timeIntervalSince(started)
+                        if elapsed >= slowDirectoryThreshold {
+                            slowDirectories.append((path, elapsed))
+                        }
+                        continue
+                    }
+
                     // Name comes from the path rather than `fts_name`: the latter
                     // is a C flexible array member, which Swift imports as a
                     // single-element tuple needing an unsafe rebind to read.
@@ -220,7 +283,7 @@ enum FileTreeWalker {
                     pendingDirectoryStarts[path] = Date()
 
                     let node = ScanNode(path: path,
-                                        name: (path as NSString).lastPathComponent,
+                                        name: name,
                                         depth: Int(entry.pointee.fts_level),
                                         parent: stack.last)
                     stack.last?.children.append(node)
@@ -229,10 +292,26 @@ enum FileTreeWalker {
                 case FTS_DP:
                     // Post-order: the subtree is complete.
                     guard entry.pointee.fts_level > 0, stack.count > 1 else { continue }
-                    if let started = pendingDirectoryStarts.removeValue(forKey: currentPath()) {
+                    let donePath = currentPath()
+
+                    // Pop only when the top of the stack really is this
+                    // directory.
+                    //
+                    // `fts_set(FTS_SKIP)` on a pre-order directory still returns
+                    // that directory in post-order — verified against fts(3) on
+                    // this machine, not assumed. Skipped directories are never
+                    // pushed, so without this guard their FTS_DP popped the
+                    // *parent* instead: with the default exclusions, the FTS_DP
+                    // for `~/Library/Mobile Documents` popped `~/Library`,
+                    // finalising it early and misattributing the rest of its
+                    // contents to the home folder. Totals stayed right because
+                    // bytes were still counted once; the breakdown did not.
+                    guard stack.last?.path == donePath else { continue }
+
+                    if let started = pendingDirectoryStarts.removeValue(forKey: donePath) {
                         let elapsed = Date().timeIntervalSince(started)
                         if elapsed >= slowDirectoryThreshold {
-                            slowDirectories.append((currentPath(), elapsed))
+                            slowDirectories.append((donePath, elapsed))
                         }
                     }
                     let node = stack.removeLast()
@@ -316,6 +395,133 @@ enum FileTreeWalker {
                           visitedEntryCount: visited,
                           totalSizeBytes: total,
                           wasCancelled: false)
+    }
+
+    // MARK: - Atomic subtree summation
+
+    private struct AtomicSum {
+        var sizeBytes: Int64 = 0
+        var logicalBytes: Int64 = 0
+        var fileCount: Int = 0
+        var newestModifiedAt: Date?
+        var wasCancelled = false
+    }
+
+    /// Totals for a subtree, building nothing.
+    ///
+    /// A second `fts` walk rooted at the atomic folder rather than a recursive
+    /// `readdir` by hand: same flags, same cycle and device handling, same
+    /// hard-link accounting as the main loop, and no new way to get any of that
+    /// subtly wrong. The only difference is that directories produce no nodes.
+    ///
+    /// Shares the caller's mutable walk state deliberately. Hard links must be
+    /// deduplicated against everything already seen — counting one twice would
+    /// overstate reclaimable space, the one direction this app must never err
+    /// in — and progress has to keep moving, because a walk that reports nothing
+    /// for two minutes is indistinguishable from a hang. Sharing is safe because
+    /// this is serial: the caller is blocked inside this call.
+    private static func sumAtomicSubtree(
+        root: String,
+        skipSet: Set<String>,
+        protectedSkips: Set<String>,
+        hasFullDiskAccess: Bool,
+        control: ScanControl,
+        visited: inout Int,
+        bytesSeen: inout Int64,
+        seenHardLinks: inout Set<UInt64>,
+        blindSpots: inout [(path: String, reason: BlindSpotReason)],
+        lastProgressAt: inout Date,
+        onProgress: (Progress) -> Void
+    ) -> AtomicSum {
+
+        var sum = AtomicSum()
+
+        let rootCopy = strdup(root)
+        defer { free(rootCopy) }
+        var pathArgv: [UnsafeMutablePointer<CChar>?] = [rootCopy, nil]
+
+        guard let fts = fts_open(&pathArgv,
+                                 FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR,
+                                 nil) else {
+            blindSpots.append((root, hasFullDiskAccess ? .unreadable : .fullDiskAccessMissing))
+            return sum
+        }
+        defer { fts_close(fts) }
+
+        while let entry = fts_read(fts) {
+            let info = Int32(entry.pointee.fts_info)
+            let level = entry.pointee.fts_level
+
+            // The root's own pre- and post-order visits were already counted by
+            // the caller, which saw this same directory before handing it over.
+            if level > 0 { visited += 1 }
+
+            if visited % 512 == 0, !control.waitIfPausedAndContinue() {
+                sum.wasCancelled = true
+                return sum
+            }
+
+            @inline(__always) func currentPath() -> String {
+                String(cString: entry.pointee.fts_path)
+            }
+
+            switch info {
+
+            case FTS_D:
+                // An exclusion inside an atomic folder is unusual but legal, and
+                // ignoring it here would quietly scan something the user said not
+                // to.
+                guard level > 0 else { continue }
+                let path = currentPath()
+                if isExcluded(path, by: skipSet) {
+                    blindSpots.append((path, protectedSkips.contains(path) ? .fullDiskAccessMissing : .excludedByUser))
+                    fts_set(fts, entry, FTS_SKIP)
+                }
+
+            case FTS_F, FTS_SL, FTS_SLNONE, FTS_DEFAULT:
+                guard let st = entry.pointee.fts_statp else { continue }
+                let stat = st.pointee
+
+                if stat.st_nlink > 1 {
+                    let key = (UInt64(stat.st_dev) << 32) ^ UInt64(stat.st_ino)
+                    if seenHardLinks.contains(key) { continue }
+                    seenHardLinks.insert(key)
+                }
+
+                let physical = Int64(stat.st_blocks) * 512
+                sum.sizeBytes += physical
+                sum.logicalBytes += Int64(stat.st_size)
+                sum.fileCount += 1
+
+                let modified = Date(timeIntervalSince1970: TimeInterval(stat.st_mtimespec.tv_sec))
+                sum.newestModifiedAt = sum.newestModifiedAt.map { max($0, modified) } ?? modified
+
+                bytesSeen += physical
+
+            case FTS_DNR:
+                let reason: BlindSpotReason = entry.pointee.fts_errno == EPERM || entry.pointee.fts_errno == EACCES
+                    ? (hasFullDiskAccess ? .permissionDenied : .fullDiskAccessMissing)
+                    : .unreadable
+                blindSpots.append((currentPath(), reason))
+
+            case FTS_NS, FTS_ERR, FTS_DC:
+                blindSpots.append((currentPath(), .unreadable))
+
+            default:
+                break
+            }
+
+            let now = Date()
+            if now.timeIntervalSince(lastProgressAt) >= progressInterval {
+                lastProgressAt = now
+                control.heartbeat()
+                onProgress(Progress(currentPath: currentPath(),
+                                    entriesVisited: visited,
+                                    bytesSoFar: bytesSeen))
+            }
+        }
+
+        return sum
     }
 
     // MARK: - Helpers
