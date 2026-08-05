@@ -51,22 +51,14 @@ enum Theme {
     /// Live-status cyan — freshness dot, confidence indicator, waiting-for-
     /// permission pulse, explanation-source label.
     ///
-    /// `#0CECFD` on dark, darkened to `#056B73` on light.
-    ///
-    /// The light variant is the same colour, not a different one: identical hue
-    /// (184.2°) and saturation, value dropped until it is legible. It has to be
-    /// darkened because this token is not only dots — the confidence label and
-    /// the explanation-source label are *text*, and they sit on `panel`, which
-    /// is `#E3E3E7` in light mode. `#0CECFD` on that measures 1.12:1, which is
-    /// not low contrast so much as invisible.
-    ///
-    /// `#056B73` measures 4.89:1 there and 6.05:1 on `content`, so it clears AA
-    /// on both surfaces the token appears against. Worth noting the old light
-    /// value (`#0EA59D`) was 2.63:1 on panel and had never cleared it.
+    /// One value in both appearances, by explicit design call (Ludwig,
+    /// 2026-08-04). The token used to carry a darkened light-mode variant for
+    /// contrast on white; the brief is now the literal colour everywhere, so the
+    /// dark/light split is gone rather than quietly reintroduced.
     ///
     /// Still ~33° of hue from `accent` (184° vs 217°), which is what keeps a
     /// status signal from reading as a button.
-    static let glow = dyn(dark: 0x0CECFD, light: 0x056B73)
+    static let glow = Color(hex: 0x0CECFD)
 
     // MARK: - Lines, selection, hover (mirrors Visuals)
 
