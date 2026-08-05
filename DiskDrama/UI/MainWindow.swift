@@ -45,9 +45,14 @@ struct MainWindow: View {
                 .font(Theme.ui(13.5, weight: .semibold))
                 .foregroundStyle(Theme.text)
 
-            Spacer(minLength: 12)
-
+            // The status sits with the title rather than against the buttons.
+            // The spacer used to come first, which meant every pixel of the gap
+            // went to the spacer and the status was squeezed against the right
+            // edge — with a whole empty title bar beside it. Now the status is
+            // offered the room first and the spacer takes what's left.
             scanStatus
+
+            Spacer(minLength: 12)
 
             Button {
                 model.activeSheet = .target
@@ -58,6 +63,10 @@ struct MainWindow: View {
             .buttonStyle(GhostButtonStyle())
             .disabled(model.hasNeverScanned)
             .accessibilityLabel("Get me to a free-space target")
+            // The buttons are what the user acts on, so they keep their full
+            // size and the status is the thing that gives way in a narrow
+            // window — never the other way round.
+            .layoutPriority(1)
 
             Button(action: model.scanEngine.isRunning ? onStopScan : onScan) {
                 Label(model.scanEngine.isRunning ? "Stop" : "Scan",
@@ -65,6 +74,7 @@ struct MainWindow: View {
             }
             .buttonStyle(AccentButtonStyle())
             .accessibilityLabel(model.scanEngine.isRunning ? "Stop the scan" : "Scan for reclaimable space")
+            .layoutPriority(1)
         }
         // Left inset clears the traffic lights, which the system draws over this
         // bar because the window uses a full-size content view.
@@ -83,7 +93,11 @@ struct MainWindow: View {
     @ViewBuilder
     private var scanStatus: some View {
         if let stall = model.scanEngine.stall {
-            let folder = PathDisplay.tail(stall.path)
+            // The full path here, not the two-component tail: this bar has the
+            // width for it, and middle truncation keeps both the part that says
+            // *where* and the folder name that says *what* — losing only the
+            // middle, which is the least useful part to keep.
+            let folder = PathDisplay.short(stall.path)
             statusText(stall.isAbandonable
                 ? "Still reading “\(folder)” — \(Int(stall.seconds))s"
                 : "Reading “\(folder)”…")
@@ -103,6 +117,7 @@ struct MainWindow: View {
             .font(Theme.body(12.5))
             .foregroundStyle(Theme.text3)
             .lineLimit(1)
+            .truncationMode(.middle)
     }
 
     // MARK: - Content
