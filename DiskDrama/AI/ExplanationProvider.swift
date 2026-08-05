@@ -27,6 +27,14 @@ protocol ExplanationProvider: Sendable {
     /// or out of a datacentre.
     var displayName: String { get }
 
+    /// Whether generation happens on this machine.
+    ///
+    /// Drives the privacy copy, which is otherwise a lie by omission: "only the
+    /// folder's name, size and date are ever sent" describes the cloud path and
+    /// nothing at all about the on-device one, where the honest statement is
+    /// that nothing is sent.
+    var isLocal: Bool { get }
+
     func explain(_ subject: ExplanationSubject) async throws -> Explanation
 }
 
@@ -109,6 +117,7 @@ enum ExplanationProviders {
 struct AnthropicExplanationProvider: ExplanationProvider {
     var identifier: String { AnthropicClient.model }
     var displayName: String { "Claude" }
+    var isLocal: Bool { false }
 
     func explain(_ subject: ExplanationSubject) async throws -> Explanation {
         try await AnthropicClient.explain(subject)

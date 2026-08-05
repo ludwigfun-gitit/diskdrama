@@ -205,8 +205,10 @@ struct SettingsSheet: View {
 
     private var explanationsSection: some View {
         Section(title: "Deeper explanations",
-                blurb: "DiskDrama tiers everything on its own, offline and free. An Anthropic API key "
-                     + "lets it also ask Claude for a closer look at whichever item you've selected.") {
+                blurb: "DiskDrama tiers everything on its own, offline and free. For a closer look at "
+                     + "whichever item you've selected it can also ask a model — Apple's on-device one "
+                     + "when this Mac can run it, otherwise Claude, if you've saved a key.") {
+            sourceStatus
             SecureField(hasStoredKey ? "A key is saved — paste a new one to replace it" : "sk-ant-…",
                         text: $apiKey)
                 .textFieldStyle(.plain)
@@ -235,10 +237,60 @@ struct SettingsSheet: View {
                 Spacer()
             }
 
-            Text("Stored in your Keychain, on this Mac only. Only the selected folder's name, size and "
-                 + "date are ever sent — never file contents, never the rest of your disk.")
-                .settingsCaption()
+            Text(privacyCaption).settingsCaption()
         }
+    }
+
+    /// Which source is actually in use.
+    ///
+    /// There is no picker here — choosing between providers is a decision that
+    /// hasn't been made. But saying nothing was worse than either option: with
+    /// the on-device model preferred, a saved key sits in the Keychain doing
+    /// nothing while the section above it implies the key is what makes the
+    /// feature work. Stating which one is live costs one row and stops Settings
+    /// describing an arrangement the app isn't using.
+    private var sourceStatus: some View {
+        HStack(alignment: .top, spacing: 9) {
+            Circle()
+                .fill(model.explanations.sourceName == nil ? Theme.text3 : Theme.glow)
+                .frame(width: 7, height: 7)
+                .padding(.top, 5)
+            Text(sourceDescription)
+                .font(Theme.body(12.5)).lineSpacing(3)
+                .foregroundStyle(Theme.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        .background(Theme.content, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .stroke(Theme.hairline, lineWidth: 1))
+    }
+
+    private var sourceDescription: String {
+        guard let source = model.explanations.sourceName else {
+            return "No deeper explanations right now — the local rule table is doing all the work. "
+                 + "Save a key below, or turn on Apple Intelligence if this Mac supports it."
+        }
+        guard model.explanations.sourceIsLocal == true else {
+            return "Using \(source), through your saved key."
+        }
+        return hasStoredKey
+            ? "Using \(source), on this Mac. Your saved key isn't being used — the on-device model "
+            + "is preferred because it costs nothing and sends nothing. Remove the key and nothing changes."
+            : "Using \(source), on this Mac. Nothing is sent anywhere and nothing is charged."
+    }
+
+    /// The privacy line only ever described the cloud path. When the on-device
+    /// model is the one answering, "only the name, size and date are sent" is
+    /// true but badly misleading — nothing is sent at all.
+    private var privacyCaption: String {
+        if model.explanations.sourceIsLocal == true {
+            return "The on-device model runs entirely on this Mac, so nothing about your files leaves "
+                 + "it. A key is only used if Apple Intelligence becomes unavailable."
+        }
+        return "Stored in your Keychain, on this Mac only. Only the selected folder's name, size and "
+             + "date are ever sent — never file contents, never the rest of your disk."
     }
 
     private var scanRootsSection: some View {

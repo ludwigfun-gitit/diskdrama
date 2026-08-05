@@ -64,6 +64,9 @@ final class ExplanationService {
     /// provenance line. Nil when the feature isn't offered at all.
     var sourceName: String? { provider?.displayName }
 
+    /// Whether the active source runs on this Mac. Nil when nothing is active.
+    var sourceIsLocal: Bool? { provider?.isLocal }
+
     func state(for item: Recommendation) -> State {
         guard isConfigured else { return .unavailable }
         return states[item.fingerprint] ?? .idle

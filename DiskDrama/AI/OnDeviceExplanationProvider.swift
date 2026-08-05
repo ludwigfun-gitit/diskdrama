@@ -64,6 +64,7 @@ struct OnDeviceProvider: ExplanationProvider {
     /// split changes in a way that makes older cached prose wrong.
     var identifier: String { "apple.systemLanguageModel+r2" }
     var displayName: String { "Apple Intelligence" }
+    var isLocal: Bool { true }
 
     static func makeIfAvailable() -> (any ExplanationProvider)? {
         switch SystemLanguageModel.default.availability {

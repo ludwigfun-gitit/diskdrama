@@ -49,9 +49,16 @@ enum Theme {
     static let accentPress = dyn(dark: 0x2E6FE0, light: 0x1E63D6)
 
     /// Live-status cyan — freshness dot, confidence indicator, waiting-for-
-    /// permission pulse. Deliberately ~40° of hue from `accent` so the two never
-    /// read as the same blue.
-    static let glow = dyn(dark: 0x2DD4C4, light: 0x0EA59D)
+    /// permission pulse, explanation-source label.
+    ///
+    /// One value in both appearances, by explicit design call (Ludwig,
+    /// 2026-08-04). The token used to carry a darkened light-mode variant for
+    /// contrast on white; the brief is now the literal colour everywhere, so the
+    /// dark/light split is gone rather than quietly reintroduced.
+    ///
+    /// Still ~33° of hue from `accent` (184° vs 217°), which is what keeps a
+    /// status signal from reading as a button.
+    static let glow = Color(hex: 0x0CECFD)
 
     // MARK: - Lines, selection, hover (mirrors Visuals)
 
