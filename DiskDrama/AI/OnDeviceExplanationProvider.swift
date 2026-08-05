@@ -51,13 +51,19 @@ enum OnDeviceExplanationProvider {
 @available(macOS 26, *)
 struct OnDeviceProvider: ExplanationProvider {
 
-    /// Deliberately not a version string. Apple does not expose one, and
-    /// inventing a stable-looking identifier for a model that updates with the
-    /// OS underneath us would make the cache's provenance field quietly
-    /// dishonest. What this promises is exactly what it says: the system model
-    /// on this Mac.
-    var identifier: String { "apple.systemLanguageModel" }
-    var displayName: String { "Apple Intelligence, on this Mac" }
+    /// Not a *model* version — Apple does not expose one, and inventing a
+    /// stable-looking one for something that updates with the OS underneath us
+    /// would make the cache's provenance field quietly dishonest.
+    ///
+    /// The `r2` is a **prompt** revision, and it earns its place: explanations
+    /// are cached by fingerprint and only reused when the identifier matches, so
+    /// without it the text written by an earlier, worse prompt survives
+    /// indefinitely. That is not hypothetical — the prompt fixes in this step
+    /// left folders still showing "1 npm package" and an invented "1 minute"
+    /// from the first version. Bump this whenever the prompt or the field
+    /// split changes in a way that makes older cached prose wrong.
+    var identifier: String { "apple.systemLanguageModel+r2" }
+    var displayName: String { "Apple Intelligence" }
 
     static func makeIfAvailable() -> (any ExplanationProvider)? {
         switch SystemLanguageModel.default.availability {

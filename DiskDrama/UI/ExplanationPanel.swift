@@ -119,6 +119,7 @@ struct ExplanationPanel: View {
             }
 
             explanationSource
+            Spacer(minLength: 0)
         }
     }
 
@@ -140,14 +141,20 @@ struct ExplanationPanel: View {
             }
             .font(Theme.mono(12.5))
         case .ready:
-            // Named, not just "looked closer". With two possible sources the
-            // reader is entitled to know whether the text they're about to act
-            // on was written on their own machine or in a datacentre — those
-            // have different reliability and different privacy properties, and
-            // the difference is not the app's to hide.
-            Text("· looked closer\(model.explanations.sourceName.map { " · \($0)" } ?? "")")
+            // Named rather than a generic "looked closer". With two possible
+            // sources the reader is entitled to know whether the text they're
+            // about to act on was written on their own machine or in a
+            // datacentre — those have different reliability and different
+            // privacy properties, and the difference is not the app's to hide.
+            //
+            // The name replaces "looked closer" instead of following it. This
+            // is one line in a single-line metadata row; carrying both wrapped
+            // it onto three lines and broke the row's baseline.
+            Text("· \(model.explanations.sourceName ?? "looked closer")")
                 .font(Theme.mono(12.5))
                 .foregroundStyle(Theme.glow)
+                .lineLimit(1)
+                .fixedSize()
         case .failed(let reason):
             Text("· couldn't look closer")
                 .font(Theme.mono(12.5))
