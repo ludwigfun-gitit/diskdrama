@@ -150,6 +150,22 @@ final class Settings {
         }
     }
 
+    // MARK: - Presentation
+
+    /// Stay a menubar-only app: no Dock icon, even while the window is open.
+    ///
+    /// Default off, which keeps the behaviour the app has had — `.accessory`
+    /// while only the status item is showing, `.regular` once the window opens.
+    ///
+    /// The trade is real and worth knowing before flipping it: an `.accessory`
+    /// application does not own the system menu bar, so with this on, DiskDrama's
+    /// own menu bar never appears and whatever app was last active keeps it while
+    /// DiskDrama's window is focused.
+    var menuBarOnly: Bool {
+        get { defaults.bool(forKey: Key.menuBarOnly.rawValue) }
+        set { defaults.set(newValue, forKey: Key.menuBarOnly.rawValue) }
+    }
+
     // MARK: - Onboarding (F05)
 
     var hasCompletedOnboarding: Bool {
@@ -174,6 +190,7 @@ final class Settings {
         case exclusions          = "scan.exclusions"
         case pruneFloor          = "scan.pruneFloorBytes"
         case deletionMode        = "deletion.defaultMode"
+        case menuBarOnly         = "ui.menuBarOnly"
         case alertQuietPeriod    = "alerts.quietPeriodSeconds"
         case lastAlertAt         = "alerts.lastAt"
         case freeSpaceTarget     = "planner.freeSpaceTargetBytes"

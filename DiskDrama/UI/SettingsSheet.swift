@@ -21,6 +21,7 @@ struct SettingsSheet: View {
     @State private var scanRoots = Settings.shared.scanRoots
     @State private var exclusions = Settings.shared.exclusions
     @State private var deleteMode = Settings.shared.defaultDeletionMode
+    @State private var menuBarOnly = Settings.shared.menuBarOnly
     @State private var lowGB = SettingsSheet.gbText(Settings.shared.lowThresholdBytes)
     @State private var criticalGB = SettingsSheet.gbText(Settings.shared.criticalThresholdBytes)
     /// Set only when a commit had to move the *other* value to keep the pair
@@ -35,6 +36,7 @@ struct SettingsSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 26) {
                     thresholdsSection
+                    presentationSection
                     explanationsSection
                     scanRootsSection
                     exclusionsSection
@@ -201,6 +203,26 @@ struct SettingsSheet: View {
         Settings.shared.criticalThresholdBytes = Self.bytes(critical)
         criticalGB = Self.gbText(Self.bytes(critical))
         model.onThresholdsChanged?()
+    }
+
+    private var presentationSection: some View {
+        Section(title: "Where DiskDrama lives",
+                blurb: "It always sits in the menu bar. Opening the window normally also puts it "
+                     + "in the Dock, like any other app.") {
+            Toggle("Menu bar only — no Dock icon", isOn: $menuBarOnly)
+                .toggleStyle(.checkbox)
+                .onChange(of: menuBarOnly) { _, new in
+                    Settings.shared.menuBarOnly = new
+                    model.onPresentationChanged?()
+                }
+
+            Text(menuBarOnly
+                 ? "The window still opens from the menu bar. One catch: an app with no Dock icon "
+                 + "doesn't own the menu bar either, so DiskDrama's own menus won't appear — "
+                 + "whichever app you were last in keeps them, even while this window is focused."
+                 : "The Dock icon appears while the window is open and goes away when you close it.")
+                .settingsCaption()
+        }
     }
 
     private var explanationsSection: some View {

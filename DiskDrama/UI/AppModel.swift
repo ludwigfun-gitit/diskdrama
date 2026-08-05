@@ -111,6 +111,11 @@ final class AppModel {
     /// given when the scan landed.
     @ObservationIgnored var onReclaimableChanged: (() -> Void)?
 
+    /// Fired when the Dock-icon preference changes. The activation policy is
+    /// `NSApplication` state, which only `AppDelegate` and the window controller
+    /// have any business touching.
+    @ObservationIgnored var onPresentationChanged: (() -> Void)?
+
     /// Whether the app currently holds Full Disk Access (F05).
     ///
     /// **Stored, not computed.** This was `{ FullDiskAccess.isGranted() }` — a

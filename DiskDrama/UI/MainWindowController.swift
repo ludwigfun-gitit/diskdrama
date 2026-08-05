@@ -64,7 +64,17 @@ final class MainWindowController: NSObject, NSWindowDelegate {
     }
 
     private func activate(_ window: NSWindow) {
-        NSApp.setActivationPolicy(.regular)
+        NSApp.setActivationPolicy(Settings.shared.menuBarOnly ? .accessory : .regular)
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    /// Applies the Dock-icon preference to a window that is already open, so the
+    /// toggle in Settings takes effect while the user is looking at it rather
+    /// than the next time they open the window.
+    func applyPresentationPreference() {
+        guard let window, window.isVisible else { return }
+        NSApp.setActivationPolicy(Settings.shared.menuBarOnly ? .accessory : .regular)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }

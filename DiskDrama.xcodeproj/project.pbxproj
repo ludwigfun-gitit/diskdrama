@@ -6,10 +6,15 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		EEE5F7DC3023972A005BF467 /* DiskDrama.icon in Resources */ = {isa = PBXBuildFile; fileRef = EEE5F7DB3023972A005BF467 /* DiskDrama.icon */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		AA0000000000000000000005 /* DiskDrama.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DiskDrama.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA0000000000000000000010 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA0000000000000000000011 /* DiskDrama.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = DiskDrama.entitlements; sourceTree = "<group>"; };
+		EEE5F7DB3023972A005BF467 /* DiskDrama.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = DiskDrama.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -37,6 +42,7 @@
 				AA000000000000000000000F /* DiskDrama */,
 				AA0000000000000000000010 /* Info.plist */,
 				AA0000000000000000000011 /* DiskDrama.entitlements */,
+				EEE5F7DB3023972A005BF467 /* DiskDrama.icon */,
 				AA0000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -111,6 +117,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EEE5F7DC3023972A005BF467 /* DiskDrama.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -217,6 +224,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ASSETCATALOG_COMPILER_APPICON_NAME = DiskDrama;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bloo.diskdrama;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -227,7 +235,10 @@
 		AA000000000000000000000E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "arm64 x86_64";
+				ARCHS = (
+					arm64,
+					x86_64,
+				);
 				CODE_SIGN_ENTITLEMENTS = DiskDrama.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -241,6 +252,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				ASSETCATALOG_COMPILER_APPICON_NAME = DiskDrama;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bloo.diskdrama;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
