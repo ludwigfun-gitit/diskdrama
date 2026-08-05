@@ -82,35 +82,55 @@ struct ExplanationPanel: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        // One line when the whole header fits on one; otherwise the status line
+        // drops to its own row flush with the panel's left edge — the same edge
+        // as the title and the body columns, never indented under whatever
+        // happened to precede it.
+        //
+        // No `Spacer` inside either candidate: a greedy spacer would make the
+        // first one measure as fitting at any width, and it is not needed — the
+        // panel is already leading-aligned.
+        ViewThatFits(in: .horizontal) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(item.classification.title)
-                    .font(Theme.display(15))
-                    .foregroundStyle(Theme.text)
-                measurements
-                Spacer(minLength: 0)
+                titleText
+                measurements(separator: true)
+                statusLine
             }
-            statusLine
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    titleText
+                    measurements(separator: false)
+                }
+                statusLine
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Size and scale, on the title's line.
-    private var measurements: some View {
-        Text(metadataText)
+    private var titleText: some View {
+        Text(item.classification.title)
+            .font(Theme.display(15))
+            .foregroundStyle(Theme.text)
+            .lineLimit(1)
+            .fixedSize()
+    }
+
+    /// Size and scale. Carries the trailing separator only when the status line
+    /// follows it on the same row.
+    private func measurements(separator: Bool) -> some View {
+        Text(metadataText + (separator ? " ·" : ""))
             .font(Theme.mono(12.5))
             .foregroundStyle(Theme.text3)
             .lineLimit(1)
             .fixedSize()
     }
 
-    /// Confidence and source, on their own line at the panel's left edge.
+    /// Confidence and source, as one indivisible run.
     ///
-    /// Always its own row, never conditionally wrapped. This chased a
-    /// better-looking single line through three layouts — inline, then wrapping
-    /// as a unit, then a hanging bullet — and every one of them put the cyan
-    /// somewhere different depending on the window width. A line that starts in
-    /// the same place at every size is worth more than one that occasionally
-    /// saves a row.
+    /// `fixedSize` on the row is what makes it contiguous: without it the pieces
+    /// are free to break apart mid-phrase and land on different lines, which is
+    /// how this looked before — three fragments, none of them aligned to
+    /// anything.
     private var statusLine: some View {
         HStack(spacing: 6) {
             if confidence.showsLiveDot {
@@ -121,10 +141,9 @@ struct ExplanationPanel: View {
                 .font(Theme.mono(12.5))
                 .foregroundStyle(confidence.showsLiveDot ? Theme.glow : Theme.text3)
                 .lineLimit(1)
-                .fixedSize()
             explanationSource
-            Spacer(minLength: 0)
         }
+        .fixedSize()
     }
 
     /// Where the prose in the two columns came from.
