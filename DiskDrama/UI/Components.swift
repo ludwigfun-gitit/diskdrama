@@ -34,6 +34,15 @@ struct AccentButtonStyle: ButtonStyle {
             .frame(height: height)
             .background(isDestructive ? Theme.danger : Theme.accent,
                         in: RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+            // Declares the shape the button actually is.
+            //
+            // Without it AppKit derives the focus ring from the button's bounds
+            // before this style laid it out, and the ring lands somewhere near
+            // the control instead of around it — visible on the onboarding
+            // sheet's primary button, where the ring sat up and to the left of
+            // the fill. `GhostButtonStyle` had this from the start, which is why
+            // its rings were always correct; the accent and quiet styles did not.
+            .contentShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
             .brightness(isHovering && isEnabled ? 0.06 : 0)
             .shadow(color: isHovering && isEnabled ? Theme.accent.opacity(0.30) : .black.opacity(0.20),
                     radius: isHovering && isEnabled ? 8 : 1, y: isHovering && isEnabled ? 0 : 1)
@@ -89,6 +98,7 @@ struct QuietButtonStyle: ButtonStyle {
             .frame(height: height)
             .background(isHovering ? Theme.hover : .clear,
                         in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .animation(Theme.transition, value: isHovering)
             .onHover { isHovering = $0 }
     }

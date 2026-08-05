@@ -93,30 +93,59 @@ struct ExplanationPanel: View {
 
     /// Size, scale, and how sure the app is — the last of which F09 requires and
     /// most tools omit entirely.
+    ///
+    /// Wraps as a unit, not as text. Left to itself the measurement string broke
+    /// mid-phrase and dropped its trailing separator onto a line of its own while
+    /// the cyan stayed up on the first — three fragments on two lines, none of
+    /// them aligned. `ViewThatFits` picks the whole row when it fits and
+    /// otherwise moves the cyan down as one piece, left-aligned under the
+    /// measurements it belongs to, with the separator dropped since nothing
+    /// follows it on that line any more.
     private var metadata: some View {
-        HStack(spacing: 6) {
-            // The separator belongs to whichever branch follows, not to the text
-            // before it — carrying it in `metadataText` printed "· ·" on every
-            // item that doesn't get the live dot.
-            Text(metadataText + " ·")
-                .font(Theme.mono(12.5))
-                .foregroundStyle(Theme.text3)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                measurements(separator: true)
+                confidenceBadge
+                explanationSource
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                measurements(separator: false)
+                HStack(spacing: 6) {
+                    confidenceBadge
+                    explanationSource
+                }
+            }
+        }
+    }
 
-            if confidence.showsLiveDot {
-                // The cyan is deliberately ~33° of hue from the accent so a
-                // confidence signal never reads as a button.
+    private func measurements(separator: Bool) -> some View {
+        Text(metadataText + (separator ? " ·" : ""))
+            .font(Theme.mono(12.5))
+            .foregroundStyle(Theme.text3)
+            .lineLimit(1)
+            .fixedSize()
+    }
+
+    @ViewBuilder
+    private var confidenceBadge: some View {
+        if confidence.showsLiveDot {
+            // Wider than the row's spacing: GlowDot's halo spills well past its
+            // 5pt frame, so at the shared spacing the glow sat on the first
+            // letter of the label.
+            HStack(spacing: 8) {
                 GlowDot(size: 5)
                 Text(confidence.label)
                     .font(Theme.mono(12.5))
                     .foregroundStyle(Theme.glow)
-            } else {
-                Text(confidence.label)
-                    .font(Theme.mono(12.5))
-                    .foregroundStyle(Theme.text3)
             }
-
-            explanationSource
-            Spacer(minLength: 0)
+            .lineLimit(1)
+            .fixedSize()
+        } else {
+            Text(confidence.label)
+                .font(Theme.mono(12.5))
+                .foregroundStyle(Theme.text3)
+                .lineLimit(1)
+                .fixedSize()
         }
     }
 

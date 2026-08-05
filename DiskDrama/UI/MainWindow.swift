@@ -44,6 +44,12 @@ struct MainWindow: View {
             Text("DiskDrama")
                 .font(Theme.ui(13.5, weight: .semibold))
                 .foregroundStyle(Theme.text)
+                // A fixed gap rather than a centred status. The status updates
+                // continuously — a path, then a tick count, then "Scanned 2
+                // hours ago" — and centring would re-centre it on every change,
+                // so the one element on this bar that moves would also never sit
+                // still. Left at a constant offset, only the text changes.
+                .padding(.trailing, 20)
 
             // The status sits with the title rather than against the buttons.
             // The spacer used to come first, which meant every pixel of the gap
