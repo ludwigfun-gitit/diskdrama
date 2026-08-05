@@ -84,6 +84,27 @@ struct TierPane: View {
             .padding(.horizontal, 26).padding(.vertical, 10)
             .background(Theme.panel)
             .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
+        } else if model.lastScanMissedProtectedLocations {
+            // Access has since been granted, but these totals were produced
+            // without it. Simply hiding the banner here would read as "all
+            // good" at the exact moment the numbers are still short.
+            //
+            // No Dismiss: one press of the button resolves it, and it clears
+            // itself on the next scan however that scan is started.
+            HStack(spacing: 11) {
+                Image(systemName: "eye")
+                    .font(.system(size: 14)).foregroundStyle(Theme.accent)
+                Text("Full Disk Access is on now — but these totals came from a scan that ran "
+                     + "without it, so they're still missing those places.")
+                    .font(Theme.body(12.5)).foregroundStyle(Theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button("Scan again", action: onScan)
+                    .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
+            }
+            .padding(.horizontal, 26).padding(.vertical, 10)
+            .background(Theme.panel)
+            .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
         }
     }
 

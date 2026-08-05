@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // open and back again on close.
         NSApp.setActivationPolicy(.accessory)
 
+
         // The monitor starts first and deliberately does not depend on the store.
         // If persistence is broken the app degrades to monitor-only rather than
         // refusing to launch — same honesty the scanner applies to blind spots.
@@ -35,6 +36,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // reading already in hand, so a threshold edit retints immediately
         // without forcing a fresh volume read.
         model.onThresholdsChanged = { [weak self] in self?.menubar?.refreshDisplay() }
+        // TCC changes while the user is away in System Settings, and sends no
+        // notification when it does. Coming back to the app is the moment to
+        // re-ask, and it costs a few stat calls.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.model.refreshAccessState() }
+        }
 
         menubar.onSettingsRequested = { [weak self] in
             self?.openMainWindow()
@@ -150,6 +159,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // a timestamp, so there is no sweep to run.
             model.clearSnoozes()
             model.checkWatches()
+            // A scan is the other moment the answer can have changed — and the
+            // moment the "granted, but the results predate it" banner has to
+            // stand down.
+            model.refreshAccessState()
             refreshMenubarSummary()
         }
         menubar?.showScanStatus("Scanning…", canStop: true)

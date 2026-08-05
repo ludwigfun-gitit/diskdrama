@@ -96,6 +96,19 @@ final class AppModel {
     /// one owner (`AppDelegate`) already wires every other edge of this graph.
     @ObservationIgnored var onThresholdsChanged: (() -> Void)?
 
+    /// Whether the app currently holds Full Disk Access (F05).
+    ///
+    /// **Stored, not computed.** This was `{ FullDiskAccess.isGranted() }` — a
+    /// computed property reading the filesystem. `@Observable` tracks stored
+    /// properties, so a computed one backed by external state gives SwiftUI no
+    /// dependency to invalidate: the reduced-mode banner kept whatever answer it
+    /// happened to render first and stayed on screen after the user actually
+    /// granted access, which is the one moment it most needed to react.
+    ///
+    /// TCC sends no notification, so this is refreshed at the moments the answer
+    /// can have changed — the same reason F05's onboarding polls.
+    private(set) var hasFullDiskAccess = FullDiskAccess.isGranted()
+
     var deletionError: String?
 
     func presentDeleteSheet(for item: Recommendation) {
@@ -679,7 +692,22 @@ final class AppModel {
 // MARK: - Full Disk Access (F05)
 
 extension AppModel {
-    var hasFullDiskAccess: Bool { FullDiskAccess.isGranted() }
+    /// Re-probes TCC. Cheap — a few `stat` calls — and only called on app
+    /// activation and after a scan, not polled.
+    func refreshAccessState() {
+        let granted = FullDiskAccess.isGranted()
+        if granted != hasFullDiskAccess { hasFullDiskAccess = granted }
+    }
+
+    /// Access is held *now*, but the results on screen were produced without it.
+    ///
+    /// Worth its own state because the obvious fix to the stale banner — hide it
+    /// the moment access appears — would leave the user looking at totals that
+    /// are still missing everything TCC was hiding, with nothing to say so. The
+    /// banner going quiet would read as "all good" precisely when it isn't.
+    var lastScanMissedProtectedLocations: Bool {
+        hasFullDiskAccess && blindSpots.contains { $0.reason == .fullDiskAccessMissing }
+    }
 
     /// Dismissal is remembered but not permanent — it re-arms if the user
     /// dismisses it and later grants access and revokes it again, because at
