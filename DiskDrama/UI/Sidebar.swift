@@ -58,8 +58,8 @@ struct Sidebar: View {
     /// the app's entire proposition in eight words.
     @ViewBuilder
     private var reclaimableLine: some View {
-        if let set = model.recommendations, set.totalReclaimableBytes > 0 {
-            Text("\(ByteFormat.compact(set.totalReclaimableBytes)) of that is reclaimable.")
+        if model.totalReclaimableBytes > 0 {
+            Text("\(ByteFormat.compact(model.totalReclaimableBytes)) of that is reclaimable.")
                 .font(Theme.body(12.5))
                 .foregroundStyle(Theme.accent)
         } else if model.hasNeverScanned {

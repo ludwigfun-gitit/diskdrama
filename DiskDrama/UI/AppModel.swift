@@ -82,6 +82,15 @@ final class AppModel {
     /// F17 — "not now". Hidden until the next scan, then back.
     private(set) var snoozedPaths: Set<String> = []
 
+    /// F19 exclusions, mirrored from `Settings` so views observe changes to them.
+    ///
+    /// `Settings` is `UserDefaults`, which `@Observable` cannot see into — a view
+    /// reading it directly would not redraw when it changed. Mirroring also means
+    /// an excluded folder disappears from the recommendations the moment it is
+    /// excluded, instead of lingering until the next scan and making the action
+    /// look like it did nothing.
+    private(set) var excludedPaths: Set<String> = Settings.shared.exclusionSet
+
     /// The last thing that went wrong, for the sheet to show.
     /// Fired when a monitor threshold changes, so the menubar can retint
     /// straight away.
@@ -95,6 +104,12 @@ final class AppModel {
     /// Deliberately the same closure convention rather than a notification —
     /// one owner (`AppDelegate`) already wires every other edge of this graph.
     @ObservationIgnored var onThresholdsChanged: (() -> Void)?
+
+    /// Fired when the set of things DiskDrama would offer to delete changes —
+    /// a deletion, a dismissal, an exclusion, a restore. The menubar summary is
+    /// computed from that set and would otherwise keep quoting the figure it was
+    /// given when the scan landed.
+    @ObservationIgnored var onReclaimableChanged: (() -> Void)?
 
     /// Whether the app currently holds Full Disk Access (F05).
     ///
@@ -159,6 +174,7 @@ final class AppModel {
                 reclaimedThisSessionBytes += outcome.sizeBytes
             }
             disk.refresh()
+            onReclaimableChanged?()
             return true
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -253,6 +269,7 @@ final class AppModel {
             trashedThisSessionBytes = max(0, trashedThisSessionBytes - entry.sizeBytes)
             deletedPaths.remove(entry.path)
             disk.refresh()
+            onReclaimableChanged?()
             loadPersistedState()
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
@@ -413,18 +430,29 @@ final class AppModel {
             !deletedPaths.contains($0.path)
                 && !ignoredPaths.contains($0.path)
                 && !snoozedPaths.contains($0.path)
+                && !isExcluded($0.path)
         }
+    }
+
+    /// Matches the walker's rule: the path itself, or anything beneath an
+    /// excluded folder. The trailing separator matters for the same reason it
+    /// does there — excluding `~/Music` must not also hide `~/MusicVideos`.
+    private func isExcluded(_ path: String) -> Bool {
+        if excludedPaths.contains(path) { return true }
+        return excludedPaths.contains { path.hasPrefix($0 + "/") }
     }
 
     /// F17: hidden now, back after the next scan.
     func snooze(_ item: Recommendation) {
         snoozedPaths.insert(item.path)
+        onReclaimableChanged?()
         write { context in context.insert(SnoozedPath(path: item.path, snapshotID: UUID())) }
     }
 
     /// F18: hidden for good, until un-ignored in Settings.
     func dismiss(_ item: Recommendation) {
         ignoredPaths.insert(item.path)
+        onReclaimableChanged?()
         write { context in context.insert(IgnoredPath(path: item.path, name: item.name)) }
     }
 
@@ -456,10 +484,14 @@ final class AppModel {
         guard !current.contains(path) else { return }
         current.append(path)
         Settings.shared.exclusions = current
+        excludedPaths = Settings.shared.exclusionSet
+        onReclaimableChanged?()
     }
 
     func unexclude(path: String) {
         Settings.shared.exclusions = Settings.shared.exclusions.filter { $0 != path }
+        excludedPaths = Settings.shared.exclusionSet
+        onReclaimableChanged?()
     }
 
     // MARK: - Watches (F21)
@@ -550,8 +582,25 @@ final class AppModel {
         try? context.save()
     }
 
+    /// Derived from `items(in:)`, not from the scan result.
+    ///
+    /// This read `recommendations?.reclaimableBytes(in:)`, which is computed once
+    /// when the scan lands and knows nothing about what has happened since. The
+    /// tier card's *count* came from the filtered list and its *size* did not, so
+    /// deleting something made the count drop while the bytes sat still — the two
+    /// halves of the same card disagreeing, which is worse than either being
+    /// stale on its own.
     func reclaimable(in tier: Tier) -> Int64 {
-        recommendations?.reclaimableBytes(in: tier) ?? 0
+        items(in: tier).reduce(0) { $0 + $1.sizeBytes }
+    }
+
+    /// Headline figure, after everything the user has done since the scan.
+    ///
+    /// Tier 2 is excluded for the same reason `RecommendationSet` excludes it:
+    /// DiskDrama cannot free that space itself, only point at the app that can,
+    /// so counting it would promise something the app does not deliver.
+    var totalReclaimableBytes: Int64 {
+        reclaimable(in: .safe) + reclaimable(in: .reviewFirst)
     }
 
     /// The selected row for a tier, defaulting to the first (largest) item —

@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // reading already in hand, so a threshold edit retints immediately
         // without forcing a fresh volume read.
         model.onThresholdsChanged = { [weak self] in self?.menubar?.refreshDisplay() }
+        model.onReclaimableChanged = { [weak self] in self?.refreshMenubarSummary() }
         // TCC changes while the user is away in System Settings, and sends no
         // notification when it does. Coming back to the app is the moment to
         // re-ask, and it costs a few stat calls.
@@ -117,7 +118,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Keeps the dropdown's reclaimable line in step with the last scan. The
     /// menubar renders it; it does not go looking for scan results itself.
     private func refreshMenubarSummary() {
-        guard let set = model.recommendations, set.totalReclaimableBytes > 0 else {
+        // The window and the dropdown must never show different answers to the
+        // same question, so both read the figure that accounts for deletions.
+        let reclaimable = model.totalReclaimableBytes
+        guard let set = model.recommendations, reclaimable > 0 else {
             menubar?.reclaimableSummary = nil
             return
         }
@@ -128,7 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let biggest {
             detail += " Biggest: \(biggest.classification.title), \(ByteFormat.compact(biggest.sizeBytes))."
         }
-        menubar?.reclaimableSummary = (set.totalReclaimableBytes, detail)
+        menubar?.reclaimableSummary = (reclaimable, detail)
         menubar?.refreshDisplay()
     }
 
@@ -179,6 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // moment the "granted, but the results predate it" banner has to
             // stand down.
             model.refreshAccessState()
+
 
             refreshMenubarSummary()
         }

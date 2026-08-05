@@ -316,19 +316,41 @@ struct ExplanationPanel: View {
             // never act on those items anyway — "not now" would just mean
             // "show me the same thing I can't use again next scan".
             if tier == .appManaged {
-                Button("Never suggest this") { model.dismiss(item) }
-                    .buttonStyle(QuietButtonStyle(height: 29))
+                neverMenu
             } else {
                 Button("Not now") { model.snooze(item) }
                     .buttonStyle(QuietButtonStyle(height: 29))
-                Button("Never") { model.dismiss(item) }
-                    .buttonStyle(QuietButtonStyle(height: 29))
+                neverMenu
             }
 
             Spacer(minLength: 8)
 
             trailingAction
         }
+    }
+
+    /// Both "stop showing me this" actions, in one control.
+    ///
+    /// They are easy to confuse and the difference is exactly the one Settings
+    /// spells out: ignoring keeps the folder in the totals and merely stops
+    /// offering it, while excluding takes it out of the scan altogether, so its
+    /// size becomes unknown by design. A button in this row has space for one or
+    /// two words — "Never" on its own, which is what was here, says neither of
+    /// those things. A menu has the room to say both.
+    ///
+    /// It also keeps the row the width it already was, rather than adding a
+    /// sixth button to a row that is tight at the minimum window size.
+    private var neverMenu: some View {
+        Menu {
+            Button("Never suggest this") { model.dismiss(item) }
+            Button("Never look in this folder") { model.exclude(path: item.path) }
+        } label: {
+            Text("Never…")
+        }
+        .menuStyle(.button)
+        .buttonStyle(QuietButtonStyle(height: 29))
+        .fixedSize()
+        .accessibilityLabel("Never suggest or never scan this folder")
     }
 
     @ViewBuilder
