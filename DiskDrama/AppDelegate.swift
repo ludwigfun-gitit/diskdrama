@@ -185,6 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model.refreshAccessState()
 
 
+
             refreshMenubarSummary()
         }
         menubar?.showScanStatus("Scanning…", canStop: true)

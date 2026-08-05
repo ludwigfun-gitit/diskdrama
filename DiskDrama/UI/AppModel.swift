@@ -734,9 +734,21 @@ final class AppModel {
     var topConsumers: [(name: String, sizeBytes: Int64)] {
         guard let set = recommendations else { return [] }
 
+        // Gone means gone. A deleted folder under a heading claiming to say
+        // where the space went is just wrong, and excluded folders are not
+        // scanned at all — their size is unknown by design, so the only number
+        // available for one is a stale one that will never be refreshed.
+        func isStillOnDisk(_ path: String) -> Bool {
+            !deletedPaths.contains(path) && !isExcluded(path)
+        }
+
         let candidates =
-            set.recommendations.map { (path: $0.path, name: $0.classification.title, sizeBytes: $0.sizeBytes) }
-            + set.largestNonRecommendable.map { (path: $0.path, name: $0.name, sizeBytes: $0.sizeBytes) }
+            set.recommendations
+                .filter { isStillOnDisk($0.path) }
+                .map { (path: $0.path, name: $0.classification.title, sizeBytes: $0.sizeBytes) }
+            + set.largestNonRecommendable
+                .filter { isStillOnDisk($0.path) }
+                .map { (path: $0.path, name: $0.name, sizeBytes: $0.sizeBytes) }
 
         var accepted: [(path: String, name: String, sizeBytes: Int64)] = []
         for candidate in candidates.sorted(by: { $0.sizeBytes > $1.sizeBytes }) {
@@ -747,6 +759,23 @@ final class AppModel {
             accepted.append(candidate)
             if accepted.count == 3 { break }
         }
+
+        // Shown only when it says something the tier list doesn't.
+        //
+        // On a developer's Mac the recommendations are usually also the biggest
+        // things on disk, so every cell ended up being a row the user had just
+        // read directly above — a second, smaller, less useful copy of the same
+        // list under a heading promising to explain the disk.
+        //
+        // The check is per-cell rather than a mode: dismissing something with
+        // "never suggest this" drops it out of the tier list while leaving it in
+        // the scan results, which is exactly the moment the map starts earning
+        // its space. It is still on the disk and still in the totals — Settings
+        // says as much — it is simply no longer being offered, and that is what
+        // this panel is for.
+        let offered = Set(Tier.allCases.flatMap { items(in: $0) }.map(\.path))
+        guard accepted.contains(where: { !offered.contains($0.path) }) else { return [] }
+
         return accepted.map { (name: $0.name, sizeBytes: $0.sizeBytes) }
     }
 

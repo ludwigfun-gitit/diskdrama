@@ -373,7 +373,10 @@ private struct StorageMapGrid: View {
         RoundedRectangle(cornerRadius: 6, style: .continuous)
             .fill(Theme.track)
             .frame(height: height)
-            .overlay(alignment: .bottomLeading) {
+            // Top-aligned: the cells are three different heights, and hanging
+            // the labels off the bottom made them sit on three different
+            // baselines. Reading across the row now starts on one line.
+            .overlay(alignment: .topLeading) {
                 if let consumer {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(consumer.name)
