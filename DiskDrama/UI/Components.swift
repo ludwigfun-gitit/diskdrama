@@ -250,6 +250,35 @@ enum PathDisplay {
         return path
     }
 
+    /// A human label for the two paths nobody recognises by path alone.
+    ///
+    /// `~/Library/Mobile Documents` and `~/Library/CloudStorage` are the File
+    /// Provider roots, and they are in the default exclusion list — so they are
+    /// the first thing a user sees in Settings, written in a form that means
+    /// nothing to anyone who hasn't read Apple's filesystem documentation.
+    ///
+    /// **Exact matches only**, against paths built from `NSHomeDirectory()`.
+    /// Prefix or substring matching would relabel a folder *inside* iCloud Drive
+    /// as though it were iCloud Drive itself, which is worse than the raw path:
+    /// a wrong name is trusted, an unfamiliar path is merely looked up. Anything
+    /// else returns nil and renders exactly as before.
+    static func friendlyName(_ path: String) -> String? {
+        let expanded = (path as NSString).expandingTildeInPath
+        let normalized = expanded.count > 1 && expanded.hasSuffix("/")
+            ? String(expanded.dropLast())
+            : expanded
+        let home = NSHomeDirectory()
+
+        switch normalized {
+        case home + "/Library/Mobile Documents":
+            return "iCloud Drive"
+        case home + "/Library/CloudStorage":
+            return "Cloud Storage (Google Drive, OneDrive, Dropbox, etc.)"
+        default:
+            return nil
+        }
+    }
+
     /// The last few components, for status text.
     ///
     /// A bare `lastPathComponent` is what the scan status used to show, and it

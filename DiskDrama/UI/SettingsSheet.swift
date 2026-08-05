@@ -316,9 +316,12 @@ struct SettingsSheet: View {
 
     private var exclusionsSection: some View {
         Section(title: "Never look here",
-                blurb: "Skipped entirely — not scanned, not counted, not recommended. "
-                     + "Their sizes are unknown by design; DiskDrama can't report on a folder it "
-                     + "never opens.") {
+                blurb: "Skipped entirely — not scanned, not counted, not recommended. Their sizes "
+                     + "are unknown by design; DiskDrama can't report on a folder it never opens. "
+                     + "iCloud Drive and other cloud-synced storage are excluded from the start, "
+                     + "because opening a file that hasn't finished downloading to this Mac can "
+                     + "stall a scan for minutes. Remove either one below if you'd rather "
+                     + "DiskDrama looked there too.") {
             PathList(paths: exclusions, emptyNote: "Nothing excluded.") { path in
                 model.unexclude(path: path)
                 exclusions = Settings.shared.exclusions
@@ -402,11 +405,29 @@ private struct PathList: View {
             } else {
                 ForEach(paths, id: \.self) { path in
                     HStack(spacing: 10) {
-                        Text(PathDisplay.short(path))
-                            .font(Theme.mono(12))
-                            .foregroundStyle(Theme.text)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
+                        // Two lines only where the path needs translating. Every
+                        // other row — scan roots, folders the user chose
+                        // themselves, dismissed items — is a path they already
+                        // recognise, and giving it a second line would be noise.
+                        if let friendly = PathDisplay.friendlyName(path) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(friendly)
+                                    .font(Theme.ui(13))
+                                    .foregroundStyle(Theme.text)
+                                    .lineLimit(1)
+                                Text(PathDisplay.short(path))
+                                    .font(Theme.mono(11))
+                                    .foregroundStyle(Theme.text3)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                        } else {
+                            Text(PathDisplay.short(path))
+                                .font(Theme.mono(12))
+                                .foregroundStyle(Theme.text)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
                         Spacer(minLength: 8)
                         Button("Remove") { onRemove(path) }
                             .buttonStyle(QuietButtonStyle(height: 22, fontSize: 11.5))
