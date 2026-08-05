@@ -21,6 +21,12 @@ struct SettingsSheet: View {
     @State private var scanRoots = Settings.shared.scanRoots
     @State private var exclusions = Settings.shared.exclusions
     @State private var deleteMode = Settings.shared.defaultDeletionMode
+    @State private var lowGB = SettingsSheet.gbText(Settings.shared.lowThresholdBytes)
+    @State private var criticalGB = SettingsSheet.gbText(Settings.shared.criticalThresholdBytes)
+    /// Set only when a commit had to move the *other* value to keep the pair
+    /// valid. Silently rewriting a number the user just typed, with no word
+    /// about it, is how a settings pane loses trust.
+    @State private var clampNote: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,6 +34,7 @@ struct SettingsSheet: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 26) {
+                    thresholdsSection
                     explanationsSection
                     scanRootsSection
                     exclusionsSection
@@ -55,7 +62,14 @@ struct SettingsSheet: View {
     private var footer: some View {
         HStack {
             Spacer()
-            Button("Done") { model.isShowingSettings = false }
+            Button("Done") {
+                // A value typed without pressing return is still a value the
+                // user asked for; losing it silently on close would be worse
+                // than applying it.
+                commitLow()
+                commitCritical()
+                model.isShowingSettings = false
+            }
                 .buttonStyle(AccentButtonStyle(height: 32, horizontalPadding: 18, fontSize: 13.5))
         }
         .padding(.horizontal, 24)
@@ -63,6 +77,131 @@ struct SettingsSheet: View {
     }
 
     // MARK: - Sections
+
+    private var thresholdsSection: some View {
+        Section(title: "When to warn you",
+                blurb: "The menubar icon takes on a colour as free space drops — amber at the "
+                     + "first level, red at the second. Both are in gigabytes.") {
+            VStack(spacing: 0) {
+                thresholdRow("Warn below", dot: .orange, text: $lowGB, commit: commitLow)
+                Rectangle().fill(Theme.hairline).frame(height: 1)
+                thresholdRow("Critical below", dot: Theme.danger, text: $criticalGB, commit: commitCritical)
+            }
+            .background(Theme.content, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Theme.hairline, lineWidth: 1))
+
+            if let clampNote {
+                Text(clampNote).settingsCaption()
+            } else {
+                Text("Critical always stays below the warning level — a disk under the critical "
+                     + "figure is under the warning figure too, so the reverse would be a "
+                     + "contradiction.")
+                    .settingsCaption()
+            }
+        }
+    }
+
+    private func thresholdRow(_ title: String, dot: Color,
+                              text: Binding<String>, commit: @escaping () -> Void) -> some View {
+        HStack(spacing: 10) {
+            Circle().fill(dot).frame(width: 7, height: 7)
+            Text(title).font(Theme.ui(13)).foregroundStyle(Theme.text)
+            Spacer(minLength: 8)
+
+            TextField("", text: text)
+                .textFieldStyle(.plain)
+                .font(Theme.mono(12.5))
+                .multilineTextAlignment(.trailing)
+                .frame(width: 46)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(Theme.panel, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Theme.hairline2, lineWidth: 1))
+                .onSubmit(commit)
+                .accessibilityLabel(title)
+
+            Text("GB").font(Theme.mono(12)).foregroundStyle(Theme.text3)
+
+            Stepper("") {
+                nudge(text, by: 0.5, commit: commit)
+            } onDecrement: {
+                nudge(text, by: -0.5, commit: commit)
+            }
+            .labelsHidden()
+            .accessibilityLabel("\(title) stepper")
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+    }
+
+    // MARK: - Threshold arithmetic
+
+    /// Decimal GB, matching `Settings`' own defaults (5 GB is 5_000_000_000
+    /// there) and `ByteFormat`. Mixing in binary units here would make the
+    /// number shown in Settings disagree with the number in the menubar.
+    private static let bytesPerGB: Double = 1_000_000_000
+    /// The pair needs somewhere to go: critical must sit strictly below the
+    /// warning level, so the warning level cannot itself be at the floor.
+    private static let floorGB = 0.1
+    private static let gapGB = 0.1
+
+    private static func gbText(_ bytes: Int64) -> String {
+        let value = Double(bytes) / bytesPerGB
+        return value == value.rounded()
+            ? String(format: "%.0f", value)
+            : String(format: "%.1f", value)
+    }
+
+    private static func bytes(_ gb: Double) -> Int64 { Int64((gb * bytesPerGB).rounded()) }
+
+    private func nudge(_ text: Binding<String>, by delta: Double, commit: () -> Void) {
+        let current = Double(text.wrappedValue.trimmingCharacters(in: .whitespaces)) ?? 0
+        text.wrappedValue = Self.gbText(Self.bytes(max(Self.floorGB, current + delta)))
+        commit()
+    }
+
+    /// Both commits clamp rather than reject. Refusing the number and leaving
+    /// the old one in place makes the user work out the rule themselves; moving
+    /// the *other* value and saying so keeps their stated intent and explains
+    /// what it cost.
+    private func commitLow() {
+        guard let typed = Double(lowGB.trimmingCharacters(in: .whitespaces)) else {
+            lowGB = Self.gbText(Settings.shared.lowThresholdBytes)
+            return
+        }
+        let low = max(Self.floorGB + Self.gapGB, typed)
+        Settings.shared.lowThresholdBytes = Self.bytes(low)
+        lowGB = Self.gbText(Self.bytes(low))
+
+        if Settings.shared.criticalThresholdBytes >= Self.bytes(low) {
+            let critical = max(Self.floorGB, low - Self.gapGB)
+            Settings.shared.criticalThresholdBytes = Self.bytes(critical)
+            criticalGB = Self.gbText(Self.bytes(critical))
+            clampNote = "Critical moved to \(criticalGB) GB to stay below the warning level."
+        } else {
+            clampNote = nil
+        }
+        model.onThresholdsChanged?()
+    }
+
+    private func commitCritical() {
+        guard let typed = Double(criticalGB.trimmingCharacters(in: .whitespaces)) else {
+            criticalGB = Self.gbText(Settings.shared.criticalThresholdBytes)
+            return
+        }
+        let low = Double(Settings.shared.lowThresholdBytes) / Self.bytesPerGB
+        var critical = max(Self.floorGB, typed)
+        if critical >= low {
+            critical = max(Self.floorGB, low - Self.gapGB)
+            clampNote = "Critical has to sit below the warning level, so it's been set to "
+                      + "\(Self.gbText(Self.bytes(critical))) GB."
+        } else {
+            clampNote = nil
+        }
+        Settings.shared.criticalThresholdBytes = Self.bytes(critical)
+        criticalGB = Self.gbText(Self.bytes(critical))
+        model.onThresholdsChanged?()
+    }
 
     private var explanationsSection: some View {
         Section(title: "Deeper explanations",

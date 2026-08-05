@@ -31,6 +31,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         disk.onThresholdCrossed = { [weak self] info, isCritical in
             self?.handleLowSpace(info, isCritical: isCritical)
         }
+        // The one model → menubar edge. `refreshDisplay()` re-renders from the
+        // reading already in hand, so a threshold edit retints immediately
+        // without forcing a fresh volume read.
+        model.onThresholdsChanged = { [weak self] in self?.menubar?.refreshDisplay() }
+
         menubar.onSettingsRequested = { [weak self] in
             self?.openMainWindow()
             self?.model.isShowingSettings = true

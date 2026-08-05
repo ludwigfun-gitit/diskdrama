@@ -83,6 +83,19 @@ final class AppModel {
     private(set) var snoozedPaths: Set<String> = []
 
     /// The last thing that went wrong, for the sheet to show.
+    /// Fired when a monitor threshold changes, so the menubar can retint
+    /// straight away.
+    ///
+    /// The closures so far all run menubar → model (`onScanRequested`,
+    /// `onSettingsRequested`). This is the first in the other direction, and it
+    /// exists because `DiskMonitor` polls every ten minutes: without it the user
+    /// types a new threshold and watches nothing happen for up to ten minutes,
+    /// which reads as a broken setting rather than a slow one.
+    ///
+    /// Deliberately the same closure convention rather than a notification —
+    /// one owner (`AppDelegate`) already wires every other edge of this graph.
+    @ObservationIgnored var onThresholdsChanged: (() -> Void)?
+
     var deletionError: String?
 
     func presentDeleteSheet(for item: Recommendation) {
