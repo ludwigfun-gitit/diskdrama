@@ -89,7 +89,14 @@ struct MainWindow: View {
         .frame(height: Theme.titleBarHeight)
         .background(Theme.chrome)
         .overlay(alignment: .bottom) {
-            Rectangle().fill(Theme.hairline).frame(height: 1)
+            // The bar *is* the bottom edge while a scan runs, so starting one
+            // shifts nothing on this bar.
+            if model.scanEngine.isRunning {
+                ScanProgressLine(fraction: model.scanProgressFraction,
+                                 isStalled: model.scanEngine.stall != nil)
+            } else {
+                Rectangle().fill(Theme.hairline).frame(height: 1)
+            }
         }
     }
 
@@ -103,9 +110,15 @@ struct MainWindow: View {
             // width for it, and middle truncation keeps both the part that says
             // *where* and the folder name that says *what* — losing only the
             // middle, which is the least useful part to keep.
+            //
+            // The work done so far is carried alongside, explicitly labelled.
+            // A stalled walk reports nothing, so this figure is frozen — but a
+            // frozen number that says "so far" is evidence the scan got
+            // somewhere, where a bare timer climbing past ten minutes reads as
+            // nothing having happened at all.
             let folder = PathDisplay.short(stall.path)
             statusText(stall.isAbandonable
-                ? "Still reading “\(folder)” — \(Int(stall.seconds))s"
+                ? "Still reading “\(folder)” — \(RelativeTime.elapsed(stall.seconds))\(scannedSoFar)"
                 : "Reading “\(folder)”…")
         } else if let progress = model.scanEngine.progress {
             statusText("\(ByteFormat.count(progress.entriesVisited)) items · \(ByteFormat.compact(progress.bytesSoFar))")
@@ -116,6 +129,13 @@ struct MainWindow: View {
         } else if let scannedAt = model.lastScanAt {
             statusText("Scanned \(RelativeTime.phrase(scannedAt))")
         }
+    }
+
+    /// Only shown once there is something to report, so a stall in the first
+    /// second doesn't claim "0 items".
+    private var scannedSoFar: String {
+        guard let progress = model.scanEngine.progress, progress.entriesVisited > 0 else { return "" }
+        return " · \(ByteFormat.count(progress.entriesVisited)) items so far"
     }
 
     private func statusText(_ text: String) -> some View {

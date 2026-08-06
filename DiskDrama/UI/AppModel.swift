@@ -367,6 +367,27 @@ final class AppModel {
     /// "scanned and found nothing", which F08 requires be said differently.
     var hasNeverScanned: Bool { recommendations == nil }
 
+    /// How far the running scan has got, 0…1, or nil when there is nothing
+    /// honest to compare against — the first scan ever, or a scan whose roots
+    /// have changed since.
+    ///
+    /// Measured in bytes rather than entries because the previous scan's byte
+    /// total survives a relaunch in the snapshot, while its entry count does
+    /// not. Bytes are lumpier — one very large file advances the bar in a jump —
+    /// but a slightly uneven bar that is right is worth more than a smooth one
+    /// that is invented.
+    ///
+    /// Clamped at 1: a disk that grew since the last scan would otherwise run
+    /// the bar off the end, and a bar that sits full while work continues is
+    /// less alarming than one that overflows.
+    var scanProgressFraction: Double? {
+        guard let seen = scanEngine.progress?.bytesSoFar,
+              let baseline = recommendations?.totalScannedBytes,
+              baseline > 0
+        else { return nil }
+        return min(1, Double(seen) / Double(baseline))
+    }
+
     /// Bytes that actually left the disk, all-time.
     ///
     /// Trash-mode jobs are **excluded**: those bytes are still occupying the

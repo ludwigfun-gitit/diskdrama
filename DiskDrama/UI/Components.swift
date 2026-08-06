@@ -308,6 +308,72 @@ enum PathDisplay {
     }
 }
 
+/// The scan's progress, drawn as the title bar's own bottom edge.
+///
+/// It replaces the hairline rather than sitting above or below it, so a running
+/// scan costs no layout and nothing on the bar moves when one starts.
+///
+/// Two modes, and the second one is the point. **Determinate** when a previous
+/// scan gives something honest to measure against. **Indeterminate** — a sweep
+/// that keeps moving regardless of the walk — when there is no baseline, or when
+/// the walk has stalled.
+///
+/// That second case is why this exists at all. A stalled walk reports nothing:
+/// `ScanEngine` clears the stall on any progress callback, so a stall that keeps
+/// counting means no callbacks are arriving, because `fts` is blocked inside a
+/// single read of an enormous directory. A determinate bar would freeze at
+/// whatever it last knew and say exactly what the frozen text said — that the
+/// app has died. A sweep says the truth instead: still working, can't tell you
+/// how far.
+struct ScanProgressLine: View {
+
+    /// 0…1, or nil when there is nothing honest to base it on.
+    var fraction: Double?
+    var isStalled: Bool
+
+    private static let thickness: CGFloat = 2
+    @State private var sweeping = false
+
+    private var isIndeterminate: Bool { fraction == nil || isStalled }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            ZStack(alignment: .leading) {
+                Rectangle().fill(Theme.hairline)
+
+                if isIndeterminate {
+                    // A lit track under the sweep, so the indeterminate state
+                    // has a resting appearance. The sweep alone starts off the
+                    // left edge, which means a still frame — or a machine with
+                    // Reduce Motion on, where the repeating animation may never
+                    // run — shows an empty track indistinguishable from idle.
+                    // That is the exact failure this bar exists to prevent.
+                    Rectangle().fill(Theme.accent.opacity(0.22))
+
+                    Rectangle()
+                        .fill(LinearGradient(
+                            colors: [Theme.accent.opacity(0), Theme.accent, Theme.accent.opacity(0)],
+                            startPoint: .leading, endPoint: .trailing))
+                        .frame(width: max(60, width * 0.26))
+                        .offset(x: sweeping ? width : -max(60, width * 0.26))
+                        .animation(.linear(duration: 1.3).repeatForever(autoreverses: false),
+                                   value: sweeping)
+                        .onAppear { sweeping = true }
+                } else if let fraction {
+                    Rectangle()
+                        .fill(Theme.accent)
+                        .frame(width: width * fraction)
+                        .animation(.easeOut(duration: 0.3), value: fraction)
+                }
+            }
+            .clipped()
+        }
+        .frame(height: Self.thickness)
+        .accessibilityHidden(true)
+    }
+}
+
 /// The live-status dot, as a light source rather than a filled circle.
 ///
 /// A flat `Circle().fill(Theme.glow)` with a shadow behind it reads as a
@@ -394,6 +460,14 @@ enum RelativeTime {
     /// land a hair ahead of the comparison instant. The first thing the user sees
     /// after their first ever scan should not be a sentence that parses as
     /// nonsense.
+    /// A running duration, for a stall that has outlived seconds being readable.
+    /// "7m 21s" is a length of time; "441s" is arithmetic homework.
+    static func elapsed(_ seconds: TimeInterval) -> String {
+        let whole = Int(seconds)
+        guard whole >= 60 else { return "\(whole)s" }
+        return "\(whole / 60)m \(whole % 60)s"
+    }
+
     static func phrase(_ date: Date) -> String {
         guard Date().timeIntervalSince(date) >= 60 else { return "just now" }
         return formatter.localizedString(for: date, relativeTo: Date())
