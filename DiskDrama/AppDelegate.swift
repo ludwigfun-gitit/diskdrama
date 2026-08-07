@@ -45,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.onThresholdsChanged = { [weak self] in self?.menubar?.refreshDisplay() }
         model.onReclaimableChanged = { [weak self] in self?.refreshMenubarSummary() }
         model.onPresentationChanged = { [weak self] in self?.mainWindow?.applyPresentationPreference() }
+
         // TCC changes while the user is away in System Settings, and sends no
         // notification when it does. Coming back to the app is the moment to
         // re-ask, and it costs a few stat calls.

@@ -332,7 +332,6 @@ struct ScanProgressLine: View {
     var isStalled: Bool
 
     private static let thickness: CGFloat = 2
-    @State private var sweeping = false
 
     private var isIndeterminate: Bool { fraction == nil || isStalled }
 
@@ -342,35 +341,58 @@ struct ScanProgressLine: View {
             ZStack(alignment: .leading) {
                 Rectangle().fill(Theme.hairline)
 
+                // A wash while indeterminate, so the state is legible even if
+                // nothing moves — a machine with Reduce Motion on would
+                // otherwise show a bare track, which is what "looks idle" looks
+                // like, and this bar exists to not do that.
                 if isIndeterminate {
-                    // A lit track under the sweep, so the indeterminate state
-                    // has a resting appearance. The sweep alone starts off the
-                    // left edge, which means a still frame — or a machine with
-                    // Reduce Motion on, where the repeating animation may never
-                    // run — shows an empty track indistinguishable from idle.
-                    // That is the exact failure this bar exists to prevent.
-                    Rectangle().fill(Theme.accent.opacity(0.22))
+                    Rectangle().fill(Theme.accent.opacity(0.18))
+                }
 
-                    Rectangle()
-                        .fill(LinearGradient(
-                            colors: [Theme.accent.opacity(0), Theme.accent, Theme.accent.opacity(0)],
-                            startPoint: .leading, endPoint: .trailing))
-                        .frame(width: max(60, width * 0.26))
-                        .offset(x: sweeping ? width : -max(60, width * 0.26))
-                        .animation(.linear(duration: 1.3).repeatForever(autoreverses: false),
-                                   value: sweeping)
-                        .onAppear { sweeping = true }
-                } else if let fraction {
+                // Progress stays on screen through a stall. The walk alternates
+                // between moving and blocking every few seconds on a big tree,
+                // and the first version swapped the bar's whole appearance each
+                // time it did — a full pale bar, then a partial blue one, back
+                // and forth. Keeping the fill put means a stall only adds the
+                // wash and the sweep, instead of replacing everything.
+                if let fraction {
                     Rectangle()
                         .fill(Theme.accent)
                         .frame(width: width * fraction)
                         .animation(.easeOut(duration: 0.3), value: fraction)
+                }
+
+                if isIndeterminate {
+                    sweep(across: width)
                 }
             }
             .clipped()
         }
         .frame(height: Self.thickness)
         .accessibilityHidden(true)
+    }
+
+    /// Driven by the clock rather than by an animation.
+    ///
+    /// The first version set a `@State` flag in `onAppear` and let
+    /// `repeatForever` carry it. It never moved: progress lands ten times a
+    /// second, and every stall toggle rebuilds this branch, so the state reset
+    /// and the animation restarted before it had gone anywhere. A timeline is
+    /// immune to both — the offset is a function of the current time, so
+    /// re-rendering it as often as you like changes nothing.
+    private func sweep(across width: CGFloat) -> some View {
+        let segment = max(60, width * 0.26)
+        return TimelineView(.animation) { context in
+            let cycle = 1.6
+            let phase = context.date.timeIntervalSinceReferenceDate
+                .truncatingRemainder(dividingBy: cycle) / cycle
+            Rectangle()
+                .fill(LinearGradient(
+                    colors: [Theme.accent.opacity(0), Theme.accent, Theme.accent.opacity(0)],
+                    startPoint: .leading, endPoint: .trailing))
+                .frame(width: segment)
+                .offset(x: -segment + (width + segment) * phase)
+        }
     }
 }
 
