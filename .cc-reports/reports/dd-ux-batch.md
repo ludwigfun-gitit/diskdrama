@@ -186,12 +186,31 @@ reversible in Settings rather than a per-scan flag the user can never find again
 The footer notes that granting access needs a relaunch before a scan can use it,
 which is true of TCC and would otherwise look like the grant had not worked.
 
-**Not driven in the UI.** The sheet compiles, is wired through `ActiveSheet` like
-every other sheet, and the callout that opens it is confirmed on screen — but I
-could not press "Show list" through the accessibility tree. SwiftUI exposes
-button labels as `AXAttributedDescription`, which System Events cannot read, so
-locating a specific button means guessing at coordinates; two attempts opened the
-wrong sheet. The sheet's *contents* are therefore unverified.
+**Now verified end to end.** The first attempt failed on the harness, not the
+code — SwiftUI exposes button labels as `AXAttributedDescription`, which System
+Events cannot read, so finding a named button means matching on geometry instead.
+Enumerating every button in the content column and picking the one whose width
+fits the label found it.
+
+Driven against a controlled tree with two excluded subfolders, so the blind spots
+are deterministic:
+
+```
+2 locations couldn't be read
+Anything inside these is missing from every total DiskDrama shows you.
+That makes the figures a floor rather than a measurement.
+
+/private/tmp/dd-bs/hidden-one
+  You've told DiskDrama not to look here. Remove it from "Never look here"
+  in Settings to include it again.
+/private/tmp/dd-bs/hidden-two
+  You've told DiskDrama not to look here. Remove it from "Never look here"
+  in Settings to include it again.
+```
+
+Each path named with a reason that says what to do about it. The
+`excludedByUser` rows correctly disable **Ignore** — it is already ignored — and
+show no **Grant access**, since a grant would not change anything.
 
 ---
 
