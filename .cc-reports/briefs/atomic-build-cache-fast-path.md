@@ -72,6 +72,10 @@ top of that unavoidable floor, not claiming to beat physics.
    delete action for that item are unchanged from what a full scan produced
    previously.
 
+## Part B — SUPERSEDED, do not build
+
+Superseded by `.cc-reports/briefs/parallel-scan-engine.md` — the walk is getting general-purpose dynamic parallelism, which covers atomic roots as a natural consequence. Don't build a second, bespoke concurrency mechanism just for these roots. Original text kept below for the reasoning trail, not as something to act on.
+
 ## Part B — Parallel summation (only if Part A isn't enough)
 
 Do NOT build this speculatively. Measure Part A first against a real large

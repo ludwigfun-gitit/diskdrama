@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import os
 
 /// The traversal. Pure C-level filesystem walking, no Foundation `URL` anywhere.
 ///
@@ -67,334 +68,387 @@ enum FileTreeWalker {
         let bytesSoFar: Int64
     }
 
+    /// How many directories deep, relative to a claimed subtree, a worker will
+    /// still consider handing siblings back to the pool.
+    ///
+    /// Shallow on purpose. Handing off deep in a tree splits work that is
+    /// already small, and every handoff costs a queue round-trip and a fresh
+    /// `fts_open`. The useful splits are near the top, where "one directory" can
+    /// still mean a hundred gigabytes.
+    static let handoffDepth: Int32 = 3
+
+    /// Workers in the pool.
+    ///
+    /// Two cores are left alone deliberately. The scan is background work; the
+    /// window, the menubar poll and the rest of the system all have to stay
+    /// responsive while it runs, and saturating every core to finish marginally
+    /// sooner is a bad trade for an app that lives in the menu bar. Clamped so a
+    /// two-core Mac still gets a pool and a very large one does not spawn more
+    /// threads than the disk can usefully feed.
+    static var workerCount: Int {
+        min(6, max(2, ProcessInfo.processInfo.activeProcessorCount - 2))
+    }
+
     /// Walks `roots`, returning the built tree.
     ///
-    /// **Runs on the calling thread and blocks it.** Callers must be on a
-    /// background queue — `ScanEngine` is the only intended caller and dispatches
-    /// via GCD, not `Task.detached`, because §3.1 means a detached task's
-    /// continuation can still resume on main. GCD gives thread guarantees; Swift
-    /// Concurrency gives scheduling hints.
+    /// **Runs on the calling thread and blocks it**, and now fans out from there
+    /// onto a pool of worker threads. Callers must be on a background queue —
+    /// `ScanEngine` is the only intended caller and dispatches via GCD, not
+    /// `Task.detached`, because §3.1 means a detached task's continuation can
+    /// still resume on main. That constraint does not relax by adding threads;
+    /// it applies to every one of them, which is why the pool is
+    /// `DispatchQueue.global` work items and not tasks.
+    ///
+    /// ## Why a pool at all
+    ///
+    /// The walk was one thread from start to finish regardless of the machine,
+    /// and one blocking `readdir` on an oversized directory stopped everything.
+    /// Measured on this Mac: 0.7% CPU while a home scan sat on a single folder.
+    /// The disk is an SSD with real concurrent throughput, and nothing about the
+    /// traversal needs to be serial — only the bookkeeping around it did.
+    ///
+    /// `fts` still does all the recursing. A worker claims a subtree and runs
+    /// exactly the loop this file has always run, with its own `fts` handle, its
+    /// own stack, and its own cycle and device-boundary handling. What is new is
+    /// only how subtrees get shared out.
     static func walk(
         roots: [String],
         exclusions: Set<String>,
         control: ScanControl,
-        onProgress: @Sendable (Progress) -> Void
+        // Escaping because the pool runs it on worker threads. The call still
+        // blocks until every worker has stopped, so it does not in fact outlive
+        // this frame — the compiler simply cannot prove that.
+        onProgress: @escaping @Sendable (Progress) -> Void
     ) -> ScanResult {
 
         let startedAt = Date()
-        var blindSpots: [(path: String, reason: BlindSpotReason)] = []
-        var rootNodes: [ScanNode] = []
-        var visited = 0
+        let shared = ScanSharedState()
 
-        /// Running total for progress reporting only.
-        ///
-        /// Deliberately *not* derived from the root nodes: those only accrue at
-        /// post-order, so a walk of a deep tree reported `0 bytes` for minutes
-        /// while making perfectly good progress. Accurate and useless is still
-        /// useless — a progress figure that doesn't move is indistinguishable
-        /// from a hang, which is the exact confusion Step 3 spent a day on.
-        var bytesSeen: Int64 = 0
-
-        var lastProgressAt = Date.distantPast
-
-        // Directories that took long enough to be worth reporting. A single
-        // pathological directory can dominate a whole scan's wall-clock, and the
-        // user deserves to be told which one rather than being left with "that
-        // took ages". It is also a genuine finding in its own right — see
-        // `slowDirectoryThreshold`.
-        var slowDirectories: [(path: String, seconds: TimeInterval)] = []
-        var pendingDirectoryStarts: [String: Date] = [:]
-
-        // Hard links occupy their blocks once, however many names point at them.
-        // Counting each name would overstate reclaimable space — and overstating
-        // is the one direction a cleanup advisor must never err in. Only tracked
-        // for entries that actually have multiple links, so the common case costs
-        // nothing.
-        var seenHardLinks = Set<UInt64>()
-
-        // Full Disk Access decides how an unreadable directory is explained: a
-        // missing grant is a fixable situation with a walkthrough behind it, an
-        // ordinary permission failure is not. Read once — it cannot change
-        // mid-scan without the app being relaunched by TCC anyway.
         let hasFullDiskAccess = FullDiskAccess.isGranted()
-
-        // Without a grant, TCC-protected folders do not fail — they hang (see
-        // `FullDiskAccess.protectedPaths`). They are folded into the skip set so
-        // the walk never reaches the blocking `open()`, and each is reported as a
-        // blind spot naming the missing permission, which is what F05's reduced
-        // mode requires anyway.
-        let protectedSkips: Set<String> = hasFullDiskAccess
-            ? []
-            : Set(FullDiskAccess.protectedPaths)
+        let protectedSkips: Set<String> = hasFullDiskAccess ? [] : Set(FullDiskAccess.protectedPaths)
         let skipSet = exclusions.union(protectedSkips)
-
-        // The rules whose whole subtree is one regenerable unit, filtered once
-        // rather than per directory. Consulting the full rule table in the walk
-        // loop would be the classifier's job done in the hot path; this is a
-        // handful of deterministic path patterns.
         let atomicRules = KnowledgeBase.rules.filter(\.isAtomicRegenerable)
 
+        // Seed one item per root. Distribution below the root happens by handoff
+        // rather than by pre-listing children: the first worker to claim a root
+        // finds the pool idle and the queue empty, so it hands its top-level
+        // directories straight back out. That reaches the same place as seeding
+        // the children explicitly, without a second way of enumerating a
+        // directory that has to agree with the first.
+        var rootNodes: [ScanNode] = []
+        var seed: [ScanWorkQueue.Item] = []
         for root in roots {
-            guard control.waitIfPausedAndContinue() else {
-                return cancelled(startedAt: startedAt, roots: rootNodes,
-                                 blindSpots: blindSpots, visited: visited)
-            }
             guard !isExcluded(root, by: skipSet) else {
-                blindSpots.append((root, protectedSkips.contains(root) ? .fullDiskAccessMissing : .excludedByUser))
+                shared.noteBlindSpot(root, protectedSkips.contains(root) ? .fullDiskAccessMissing : .excludedByUser)
                 continue
             }
+            let node = ScanNode(path: root,
+                                name: (root as NSString).lastPathComponent,
+                                depth: 0,
+                                parent: nil)
+            rootNodes.append(node)
+            seed.append(ScanWorkQueue.Item(path: root, node: node, isRoot: true))
+        }
 
-            // fts_open takes a NULL-terminated array of C strings. Only one root
-            // is passed per call so a failure is attributable to a specific root
-            // rather than the batch.
-            let rootCopy = strdup(root)
-            defer { free(rootCopy) }
-            var pathArgv: [UnsafeMutablePointer<CChar>?] = [rootCopy, nil]
+        let queue = ScanWorkQueue(seed: seed)
 
-            guard let fts = fts_open(&pathArgv,
-                                     FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR,
-                                     nil) else {
-                blindSpots.append((root, hasFullDiskAccess ? .unreadable : .fullDiskAccessMissing))
-                continue
-            }
-            defer { fts_close(fts) }
+        // Subtrees that were handed to another worker, and therefore must not
+        // roll up into their parents until every worker has stopped. See
+        // `joinHandedOffSubtrees`.
+        let joinsLock = OSAllocatedUnfairLock(initialState: [ScanNode]())
 
-            let rootNode = ScanNode(path: root,
-                                    name: (root as NSString).lastPathComponent,
-                                    depth: 0,
-                                    parent: nil)
-            rootNodes.append(rootNode)
-
-            // Stack of open directories. `fts` emits FTS_D on the way down and
-            // FTS_DP on the way back up, so this mirrors the walk exactly and
-            // never needs a path lookup to find the current parent.
-            var stack: [ScanNode] = [rootNode]
-
-            while let entry = fts_read(fts) {
-                visited += 1
-
-                // Polled rather than checked every entry: the lock is cheap but
-                // not free, and 512 entries is a few milliseconds of walking —
-                // well inside any human sense of "it stopped immediately".
-                if visited % 512 == 0 {
-                    guard control.waitIfPausedAndContinue() else {
-                        return cancelled(startedAt: startedAt, roots: rootNodes,
-                                         blindSpots: blindSpots, visited: visited)
-                    }
+        let group = DispatchGroup()
+        let pool = DispatchQueue.global(qos: .utility)
+        for worker in 0..<workerCount {
+            pool.async(group: group) {
+                while let item = queue.claim() {
+                    walkClaimed(item,
+                                worker: worker,
+                                queue: queue,
+                                shared: shared,
+                                joins: joinsLock,
+                                skipSet: skipSet,
+                                protectedSkips: protectedSkips,
+                                hasFullDiskAccess: hasFullDiskAccess,
+                                atomicRules: atomicRules,
+                                control: control,
+                                onProgress: onProgress)
+                    queue.finish()
+                    if control.current == .cancelled { queue.stop() }
                 }
-
-                let info = Int32(entry.pointee.fts_info)
-
-                // The path String is built only in the branches that need it.
-                //
-                // Files are the overwhelming majority of entries — millions on a
-                // developer's home directory — and none of them need a Swift
-                // String: their bytes go straight into the parent's totals. Doing
-                // `String(cString:)` unconditionally at the top of the loop, as
-                // this first did, allocated and UTF-8-validated a string per file
-                // and made the walk several times slower than `du` for no benefit
-                // whatsoever.
-                @inline(__always) func currentPath() -> String {
-                    String(cString: entry.pointee.fts_path)
-                }
-
-                switch info {
-
-                case FTS_D:
-                    // Pre-order. Decide here whether to descend at all.
-                    let path = currentPath()
-                    if entry.pointee.fts_level > 0 && isExcluded(path, by: skipSet) {
-                        // Distinguish the two reasons: "you told me not to look"
-                        // and "I am not allowed to look" need different copy and
-                        // only the second has a fix behind it.
-                        blindSpots.append((path, protectedSkips.contains(path) ? .fullDiskAccessMissing : .excludedByUser))
-                        fts_set(fts, entry, FTS_SKIP)
-                        continue
-                    }
-                    if entry.pointee.fts_level == 0 { continue }  // the root itself, already on the stack
-
-                    let name = (path as NSString).lastPathComponent
-
-                    // Fast path: a folder the knowledge base already recognises,
-                    // from the path alone, as one regenerable unit.
-                    //
-                    // Everything below it is summed without a `ScanNode` per
-                    // subdirectory. Every file is still visited — there is no
-                    // OS-level "size of this tree" on APFS, so that floor is not
-                    // avoidable — but the Swift-side allocation and bookkeeping
-                    // for structure nobody will ever open is.
-                    //
-                    // Only at `fts_level > 0`, and that matters: F10's "Look
-                    // inside" re-walks a single directory with that directory as
-                    // the root, and it needs the children. A caller asking about
-                    // this path specifically wants the detail; a walk merely
-                    // passing through it does not.
-                    if !atomicRules.isEmpty,
-                       atomicRules.contains(where: { $0.matcher.matches(path: path, name: name) }) {
-                        control.entering(path)
-                        let started = Date()
-                        fts_set(fts, entry, FTS_SKIP)
-
-                        let sum = sumAtomicSubtree(
-                            root: path, skipSet: skipSet, protectedSkips: protectedSkips,
-                            hasFullDiskAccess: hasFullDiskAccess, control: control,
-                            visited: &visited, bytesSeen: &bytesSeen,
-                            seenHardLinks: &seenHardLinks, blindSpots: &blindSpots,
-                            lastProgressAt: &lastProgressAt, onProgress: onProgress)
-
-                        guard !sum.wasCancelled else {
-                            return cancelled(startedAt: startedAt, roots: rootNodes,
-                                             blindSpots: blindSpots, visited: visited)
-                        }
-
-                        let atomic = ScanNode(path: path, name: name,
-                                              depth: Int(entry.pointee.fts_level),
-                                              parent: stack.last)
-                        atomic.sizeBytes = sum.sizeBytes
-                        atomic.logicalBytes = sum.logicalBytes
-                        atomic.fileCount = sum.fileCount
-                        atomic.newestModifiedAt = sum.newestModifiedAt
-                        stack.last?.children.append(atomic)
-                        // Rolled up here rather than at post-order, because the
-                        // post-order visit for this directory is deliberately
-                        // ignored — nothing was pushed for it.
-                        atomic.accumulateIntoParent()
-
-
-                        // One finding for the whole unit, not one per
-                        // subdirectory inside it.
-                        let elapsed = Date().timeIntervalSince(started)
-                        if elapsed >= slowDirectoryThreshold {
-                            slowDirectories.append((path, elapsed))
-                        }
-                        continue
-                    }
-
-                    // Name comes from the path rather than `fts_name`: the latter
-                    // is a C flexible array member, which Swift imports as a
-                    // single-element tuple needing an unsafe rebind to read.
-                    // `NSString.lastPathComponent` on a plain String is a pure
-                    // string operation — the §5.1 hazard is `URL`'s accessors,
-                    // not string manipulation.
-                    // Published *before* fts opens the directory, so a stall is
-                    // attributable to a specific path even though the thread that
-                    // would report it is the one that is stuck.
-                    control.entering(path)
-                    pendingDirectoryStarts[path] = Date()
-
-                    let node = ScanNode(path: path,
-                                        name: name,
-                                        depth: Int(entry.pointee.fts_level),
-                                        parent: stack.last)
-                    stack.last?.children.append(node)
-                    stack.append(node)
-
-                case FTS_DP:
-                    // Post-order: the subtree is complete.
-                    guard entry.pointee.fts_level > 0, stack.count > 1 else { continue }
-                    let donePath = currentPath()
-
-                    // Pop only when the top of the stack really is this
-                    // directory.
-                    //
-                    // `fts_set(FTS_SKIP)` on a pre-order directory still returns
-                    // that directory in post-order — verified against fts(3) on
-                    // this machine, not assumed. Skipped directories are never
-                    // pushed, so without this guard their FTS_DP popped the
-                    // *parent* instead: with the default exclusions, the FTS_DP
-                    // for `~/Library/Mobile Documents` popped `~/Library`,
-                    // finalising it early and misattributing the rest of its
-                    // contents to the home folder. Totals stayed right because
-                    // bytes were still counted once; the breakdown did not.
-                    guard stack.last?.path == donePath else { continue }
-
-                    if let started = pendingDirectoryStarts.removeValue(forKey: donePath) {
-                        let elapsed = Date().timeIntervalSince(started)
-                        if elapsed >= slowDirectoryThreshold {
-                            slowDirectories.append((donePath, elapsed))
-                        }
-                    }
-                    let node = stack.removeLast()
-                    if node.sizeBytes < inMemoryDetailFloorBytes {
-                        node.children.removeAll()   // totals kept, breakdown dropped
-                    }
-                    node.accumulateIntoParent()
-
-                case FTS_F, FTS_SL, FTS_SLNONE, FTS_DEFAULT:
-                    guard let st = entry.pointee.fts_statp else { continue }
-                    let stat = st.pointee
-
-                    if stat.st_nlink > 1 {
-                        let key = (UInt64(stat.st_dev) << 32) ^ UInt64(stat.st_ino)
-                        if seenHardLinks.contains(key) { continue }
-                        seenHardLinks.insert(key)
-                    }
-
-                    let physical = Int64(stat.st_blocks) * 512
-                    let logical = Int64(stat.st_size)
-                    let modified = Date(timeIntervalSince1970: TimeInterval(stat.st_mtimespec.tv_sec))
-
-                    bytesSeen += physical
-
-                    if let current = stack.last {
-                        current.sizeBytes += physical
-                        current.logicalBytes += logical
-                        current.fileCount += 1
-                        current.newestModifiedAt = current.newestModifiedAt.map { max($0, modified) } ?? modified
-                    }
-
-                case FTS_DNR:
-                    // Directory exists but could not be opened. This is the case
-                    // F06 requires be recorded and shown rather than guessed at —
-                    // and without Full Disk Access it is most of ~/Library.
-                    let reason: BlindSpotReason = entry.pointee.fts_errno == EPERM || entry.pointee.fts_errno == EACCES
-                        ? (hasFullDiskAccess ? .permissionDenied : .fullDiskAccessMissing)
-                        : .unreadable
-                    blindSpots.append((currentPath(), reason))
-                    stack.last?.blindSpot = reason
-
-                case FTS_NS, FTS_ERR:
-                    blindSpots.append((currentPath(), .unreadable))
-
-                case FTS_DC:
-                    // Directory cycle. Cannot happen with FTS_PHYSICAL, but if it
-                    // ever does, silently double-counting is the worst response.
-                    blindSpots.append((currentPath(), .unreadable))
-
-                default:
-                    break
-                }
-
-                let now = Date()
-                if now.timeIntervalSince(lastProgressAt) >= progressInterval {
-                    lastProgressAt = now
-                    // Heartbeat and progress share the same throttle: both mean
-                    // "the walk is still moving", and taking the lock per
-                    // filesystem entry would cost millions of acquisitions.
-                    control.heartbeat()
-                    onProgress(Progress(currentPath: currentPath(),
-                                        entriesVisited: visited,
-                                        bytesSoFar: bytesSeen))
-                }
-            }
-
-            // Unwind anything still open — a walk cut short by an fts-level error
-            // leaves entries on the stack whose totals would otherwise never roll
-            // up into their parents.
-            while stack.count > 1 {
-                stack.removeLast().accumulateIntoParent()
+                control.idle(worker: worker)
             }
         }
+        group.wait()
+
+        let totals = shared.totals
+
+        guard control.current != .cancelled else {
+            return cancelled(startedAt: startedAt, roots: rootNodes,
+                             blindSpots: shared.blindSpots, visited: totals.visited)
+        }
+
+        joinHandedOffSubtrees(joinsLock.withLock { $0 })
 
         let total = rootNodes.reduce(Int64(0)) { $0 + $1.sizeBytes }
         return ScanResult(roots: rootNodes,
-                          blindSpots: blindSpots,
-                          slowDirectories: slowDirectories.sorted { $0.seconds > $1.seconds },
+                          blindSpots: shared.blindSpots,
+                          slowDirectories: shared.slowDirectories.sorted { $0.seconds > $1.seconds },
                           startedAt: startedAt,
                           completedAt: Date(),
-                          visitedEntryCount: visited,
+                          visitedEntryCount: totals.visited,
                           totalSizeBytes: total,
                           wasCancelled: false)
+    }
+
+    /// Rolls handed-off subtrees into their parents, once, after every worker
+    /// has stopped.
+    ///
+    /// This is deliberately *not* done during the walk. A node whose children
+    /// are being filled in by three other threads cannot be finalised while they
+    /// are still running — it would be pruned or accumulated with totals that
+    /// are simply not complete yet, and no amount of locking the node fixes
+    /// that, because the question is not "is this write safe" but "has
+    /// everything that will ever be added, been added".
+    ///
+    /// Deepest first, so a nested handoff has already folded into its own parent
+    /// before that parent folds into *its* parent. Within a worker's own subtree
+    /// nothing changes: post-order accumulation and the sub-10 MB prune still
+    /// happen inline, on one thread, exactly as before — which is also what
+    /// keeps memory bounded, since only the join points survive to here.
+    private static func joinHandedOffSubtrees(_ joins: [ScanNode]) {
+        for node in joins.sorted(by: { $0.depth > $1.depth }) {
+            if node.sizeBytes < inMemoryDetailFloorBytes {
+                node.children.removeAll()
+            }
+            node.accumulateIntoParent()
+        }
+    }
+
+    /// One claimed subtree, walked by one worker.
+    ///
+    /// This is the loop this file has always had. The per-entry switch, the
+    /// blind-spot reasons, the hard-link accounting, the prune floor and the
+    /// stack discipline are unchanged in substance — what changed is where the
+    /// counters live and that a directory can now be given away instead of
+    /// walked.
+    private static func walkClaimed(
+        _ item: ScanWorkQueue.Item,
+        worker: Int,
+        queue: ScanWorkQueue,
+        shared: ScanSharedState,
+        joins: OSAllocatedUnfairLock<[ScanNode]>,
+        skipSet: Set<String>,
+        protectedSkips: Set<String>,
+        hasFullDiskAccess: Bool,
+        atomicRules: [ClassificationRule],
+        control: ScanControl,
+        onProgress: @Sendable (Progress) -> Void
+    ) {
+        let rootCopy = strdup(item.path)
+        defer { free(rootCopy) }
+        var pathArgv: [UnsafeMutablePointer<CChar>?] = [rootCopy, nil]
+
+        guard let fts = fts_open(&pathArgv, FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR, nil) else {
+            shared.noteBlindSpot(item.path, hasFullDiskAccess ? .unreadable : .fullDiskAccessMissing)
+            return
+        }
+        defer { fts_close(fts) }
+
+        let baseDepth = item.node.depth
+        var stack: [ScanNode] = [item.node]
+        var pendingDirectoryStarts: [String: Date] = [:]
+
+        // Nodes that must not roll up here, because something under them is
+        // being filled in by another worker.
+        //
+        // Without this, an ancestor reaches its post-order visit while a
+        // handed-off descendant is still running, and folds an incomplete total
+        // into *its* parent. The join pass adds the missing bytes to the
+        // ancestor afterwards — too late, the grandparent already took the old
+        // number, and the scan quietly under-reports. Worker-local because the
+        // whole chain being marked belongs to this worker.
+        var deferred = Set<ObjectIdentifier>()
+
+        // Worker-local counters, merged into the shared totals on the throttle.
+        // See `ScanSharedState` for why they are not shared directly.
+        var localVisited = 0
+        var localBytes: Int64 = 0
+        var sinceMerge = 0
+
+        control.entering(item.path, worker: worker)
+
+        while let entry = fts_read(fts) {
+            let level = entry.pointee.fts_level
+            if level > 0 || item.isRoot { localVisited += 1 }
+
+            sinceMerge += 1
+            if sinceMerge >= 512 {
+                guard control.waitIfPausedAndContinue() else { return }
+                sinceMerge = 0
+            }
+
+            let info = Int32(entry.pointee.fts_info)
+
+            @inline(__always) func currentPath() -> String {
+                String(cString: entry.pointee.fts_path)
+            }
+
+            switch info {
+
+            case FTS_D:
+                let path = currentPath()
+                if level > 0 && isExcluded(path, by: skipSet) {
+                    shared.noteBlindSpot(path, protectedSkips.contains(path) ? .fullDiskAccessMissing : .excludedByUser)
+                    fts_set(fts, entry, FTS_SKIP)
+                    continue
+                }
+                if level == 0 { continue }   // the claimed root, already on the stack
+
+                let name = (path as NSString).lastPathComponent
+                let node = ScanNode(path: path, name: name,
+                                    depth: baseDepth + Int(level),
+                                    parent: stack.last)
+
+                // Hand it to an idle worker rather than walking it here.
+                //
+                // Only near the top of a claimed subtree, and only when someone
+                // is actually waiting — see `ScanWorkQueue.wantsWork`. The node
+                // is created and attached first, so the tree's shape is settled
+                // before another thread can touch it; only its *contents* are
+                // filled in elsewhere.
+                if level <= handoffDepth, queue.wantsWork {
+                    stack.last?.children.append(node)
+                    joins.withLock { $0.append(node) }
+                    // Every ancestor now has an outstanding descendant.
+                    for ancestor in stack { deferred.insert(ObjectIdentifier(ancestor)) }
+                    queue.push(ScanWorkQueue.Item(path: path, node: node, isRoot: false))
+                    fts_set(fts, entry, FTS_SKIP)
+                    continue
+                }
+
+                if !atomicRules.isEmpty,
+                   atomicRules.contains(where: { $0.matcher.matches(path: path, name: name) }) {
+                    control.entering(path, worker: worker)
+                    let started = Date()
+                    fts_set(fts, entry, FTS_SKIP)
+
+                    let sum = sumAtomicSubtree(
+                        root: path, skipSet: skipSet, protectedSkips: protectedSkips,
+                        hasFullDiskAccess: hasFullDiskAccess, control: control, worker: worker,
+                        visited: &localVisited, bytesSeen: &localBytes,
+                        shared: shared, onProgress: onProgress)
+
+                    guard !sum.wasCancelled else { return }
+
+                    node.sizeBytes = sum.sizeBytes
+                    node.logicalBytes = sum.logicalBytes
+                    node.fileCount = sum.fileCount
+                    node.newestModifiedAt = sum.newestModifiedAt
+                    stack.last?.children.append(node)
+                    node.accumulateIntoParent()
+
+                    let elapsed = Date().timeIntervalSince(started)
+                    if elapsed >= slowDirectoryThreshold {
+                        shared.noteSlowDirectory(path, seconds: elapsed)
+                    }
+                    continue
+                }
+
+                control.entering(path, worker: worker)
+                pendingDirectoryStarts[path] = Date()
+                stack.last?.children.append(node)
+                stack.append(node)
+
+            case FTS_DP:
+                guard level > 0, stack.count > 1 else { continue }
+                let donePath = currentPath()
+
+                // Pop only when the top of the stack really is this directory.
+                //
+                // `fts_set(FTS_SKIP)` on a pre-order directory still returns that
+                // directory in post-order — verified against fts(3) on this
+                // machine, not assumed. Skipped directories are never pushed, so
+                // without this guard their FTS_DP popped the *parent* instead.
+                // Handoff made this matter twice over: every handed-off
+                // directory is a skip.
+                guard stack.last?.path == donePath else { continue }
+
+                if let started = pendingDirectoryStarts.removeValue(forKey: donePath) {
+                    let elapsed = Date().timeIntervalSince(started)
+                    if elapsed >= slowDirectoryThreshold {
+                        shared.noteSlowDirectory(donePath, seconds: elapsed)
+                    }
+                }
+                let node = stack.removeLast()
+                guard !deferred.contains(ObjectIdentifier(node)) else {
+                    joins.withLock { $0.append(node) }
+                    continue
+                }
+                if node.sizeBytes < inMemoryDetailFloorBytes {
+                    node.children.removeAll()   // totals kept, breakdown dropped
+                }
+                node.accumulateIntoParent()
+
+            case FTS_F, FTS_SL, FTS_SLNONE, FTS_DEFAULT:
+                guard let st = entry.pointee.fts_statp else { continue }
+                let stat = st.pointee
+
+                if stat.st_nlink > 1 {
+                    let key = (UInt64(stat.st_dev) << 32) ^ UInt64(stat.st_ino)
+                    guard shared.claimHardLink(key) else { continue }
+                }
+
+                let physical = Int64(stat.st_blocks) * 512
+                let logical = Int64(stat.st_size)
+                let modified = Date(timeIntervalSince1970: TimeInterval(stat.st_mtimespec.tv_sec))
+
+                localBytes += physical
+
+                if let current = stack.last {
+                    current.sizeBytes += physical
+                    current.logicalBytes += logical
+                    current.fileCount += 1
+                    current.newestModifiedAt = current.newestModifiedAt.map { max($0, modified) } ?? modified
+                }
+
+            case FTS_DNR:
+                let reason: BlindSpotReason = entry.pointee.fts_errno == EPERM || entry.pointee.fts_errno == EACCES
+                    ? (hasFullDiskAccess ? .permissionDenied : .fullDiskAccessMissing)
+                    : .unreadable
+                shared.noteBlindSpot(currentPath(), reason)
+                stack.last?.blindSpot = reason
+
+            case FTS_NS, FTS_ERR, FTS_DC:
+                shared.noteBlindSpot(currentPath(), .unreadable)
+
+            default:
+                break
+            }
+
+            if localVisited >= 512 || localBytes > 0 {
+                let merged = shared.merge(visited: localVisited, bytes: localBytes)
+                localVisited = 0
+                localBytes = 0
+                if merged.shouldReport {
+                    control.heartbeat(worker: worker)
+                    onProgress(Progress(currentPath: currentPath(),
+                                        entriesVisited: merged.visited,
+                                        bytesSoFar: merged.bytes))
+                }
+            }
+        }
+
+        // Unwind anything still open, then fold the worker's remaining counts in.
+        while stack.count > 1 {
+            let node = stack.removeLast()
+            if deferred.contains(ObjectIdentifier(node)) {
+                joins.withLock { $0.append(node) }
+            } else {
+                node.accumulateIntoParent()
+            }
+        }
+        _ = shared.merge(visited: localVisited, bytes: localBytes)
     }
 
     // MARK: - Atomic subtree summation
@@ -426,11 +480,10 @@ enum FileTreeWalker {
         protectedSkips: Set<String>,
         hasFullDiskAccess: Bool,
         control: ScanControl,
+        worker: Int,
         visited: inout Int,
         bytesSeen: inout Int64,
-        seenHardLinks: inout Set<UInt64>,
-        blindSpots: inout [(path: String, reason: BlindSpotReason)],
-        lastProgressAt: inout Date,
+        shared: ScanSharedState,
         onProgress: (Progress) -> Void
     ) -> AtomicSum {
 
@@ -443,26 +496,37 @@ enum FileTreeWalker {
         guard let fts = fts_open(&pathArgv,
                                  FTS_PHYSICAL | FTS_XDEV | FTS_NOCHDIR,
                                  nil) else {
-            blindSpots.append((root, hasFullDiskAccess ? .unreadable : .fullDiskAccessMissing))
+            shared.noteBlindSpot(root, hasFullDiskAccess ? .unreadable : .fullDiskAccessMissing)
             return sum
         }
         defer { fts_close(fts) }
+
+        var sinceCheck = 0
 
         while let entry = fts_read(fts) {
             let info = Int32(entry.pointee.fts_info)
             let level = entry.pointee.fts_level
 
-            // The root's own pre- and post-order visits were already counted by
-            // the caller, which saw this same directory before handing it over.
+            // The root's own visits were counted by the caller, which saw this
+            // same directory before handing it over.
             if level > 0 { visited += 1 }
 
-            if visited % 512 == 0, !control.waitIfPausedAndContinue() {
-                sum.wasCancelled = true
-                return sum
-            }
-
-            @inline(__always) func currentPath() -> String {
-                String(cString: entry.pointee.fts_path)
+            sinceCheck += 1
+            if sinceCheck >= 512 {
+                sinceCheck = 0
+                if !control.waitIfPausedAndContinue() {
+                    sum.wasCancelled = true
+                    return sum
+                }
+                let merged = shared.merge(visited: visited, bytes: bytesSeen)
+                visited = 0
+                bytesSeen = 0
+                if merged.shouldReport {
+                    control.heartbeat(worker: worker)
+                    onProgress(Progress(currentPath: String(cString: entry.pointee.fts_path),
+                                        entriesVisited: merged.visited,
+                                        bytesSoFar: merged.bytes))
+                }
             }
 
             switch info {
@@ -472,9 +536,9 @@ enum FileTreeWalker {
                 // ignoring it here would quietly scan something the user said not
                 // to.
                 guard level > 0 else { continue }
-                let path = currentPath()
+                let path = String(cString: entry.pointee.fts_path)
                 if isExcluded(path, by: skipSet) {
-                    blindSpots.append((path, protectedSkips.contains(path) ? .fullDiskAccessMissing : .excludedByUser))
+                    shared.noteBlindSpot(path, protectedSkips.contains(path) ? .fullDiskAccessMissing : .excludedByUser)
                     fts_set(fts, entry, FTS_SKIP)
                 }
 
@@ -484,8 +548,7 @@ enum FileTreeWalker {
 
                 if stat.st_nlink > 1 {
                     let key = (UInt64(stat.st_dev) << 32) ^ UInt64(stat.st_ino)
-                    if seenHardLinks.contains(key) { continue }
-                    seenHardLinks.insert(key)
+                    guard shared.claimHardLink(key) else { continue }
                 }
 
                 let physical = Int64(stat.st_blocks) * 512
@@ -502,22 +565,13 @@ enum FileTreeWalker {
                 let reason: BlindSpotReason = entry.pointee.fts_errno == EPERM || entry.pointee.fts_errno == EACCES
                     ? (hasFullDiskAccess ? .permissionDenied : .fullDiskAccessMissing)
                     : .unreadable
-                blindSpots.append((currentPath(), reason))
+                shared.noteBlindSpot(String(cString: entry.pointee.fts_path), reason)
 
             case FTS_NS, FTS_ERR, FTS_DC:
-                blindSpots.append((currentPath(), .unreadable))
+                shared.noteBlindSpot(String(cString: entry.pointee.fts_path), .unreadable)
 
             default:
                 break
-            }
-
-            let now = Date()
-            if now.timeIntervalSince(lastProgressAt) >= progressInterval {
-                lastProgressAt = now
-                control.heartbeat()
-                onProgress(Progress(currentPath: currentPath(),
-                                    entriesVisited: visited,
-                                    bytesSoFar: bytesSeen))
             }
         }
 

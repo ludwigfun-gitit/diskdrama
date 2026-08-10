@@ -35,18 +35,43 @@ final class ScanControl: Sendable {
     }
 
     private let state = OSAllocatedUnfairLock(initialState: State.running)
-    private let activity = OSAllocatedUnfairLock(
-        initialState: Activity(path: "", since: .distantPast)
-    )
+
+    /// One activity per worker, not one for the walk.
+    ///
+    /// The walk used to be a single thread, so "what is the traversal doing" had
+    /// exactly one answer. With a pool of workers there are N answers at once,
+    /// and collapsing them into one shared slot would mean the last worker to
+    /// enter a directory silently overwrites everyone else's — a busy worker
+    /// would keep resetting the timestamp of a genuinely wedged one, and the
+    /// stall would never be reported at all.
+    private let activities = OSAllocatedUnfairLock(initialState: [Int: Activity]())
 
     var current: State { state.withLock { $0 } }
 
-    var currentActivity: Activity { activity.withLock { $0 } }
+    /// The worst-stalled worker, which is the only one worth naming.
+    ///
+    /// While any worker is moving, `ScanEngine` keeps clearing the stall on its
+    /// progress callbacks, so this surfaces only when the whole pool is stuck —
+    /// which is exactly when the user needs to be told. One slow folder among
+    /// eight busy workers is no longer a stall, because it no longer stops the
+    /// scan.
+    var currentActivity: Activity {
+        activities.withLock { live in
+            live.values.min(by: { $0.since < $1.since })
+                ?? Activity(path: "", since: .distantPast)
+        }
+    }
 
     /// Called immediately before descending into a directory. Sets both the path
     /// being worked on and a fresh progress timestamp.
-    func entering(_ path: String) {
-        activity.withLock { $0 = Activity(path: path, since: Date()) }
+    func entering(_ path: String, worker: Int = 0) {
+        activities.withLock { $0[worker] = Activity(path: path, since: Date()) }
+    }
+
+    /// Drops a worker's activity when it runs out of work, so an idle worker's
+    /// last directory cannot masquerade as the longest-running stall.
+    func idle(worker: Int) {
+        activities.withLock { $0[worker] = nil }
     }
 
     /// Called from the walk's already-throttled progress tick.
@@ -62,8 +87,8 @@ final class ScanControl: Sendable {
     /// the walk loop, so when the walk blocks, the heartbeat stops with it. The
     /// path deliberately does not change here — the last directory entered is
     /// still the most useful thing to name.
-    func heartbeat() {
-        activity.withLock { $0.since = Date() }
+    func heartbeat(worker: Int = 0) {
+        activities.withLock { $0[worker]?.since = Date() }
     }
 
     func pause() {

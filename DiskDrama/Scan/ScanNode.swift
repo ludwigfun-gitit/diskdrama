@@ -11,7 +11,16 @@ import Foundation
 /// one would cost more memory than the app is trying to reclaim disk. F10's
 /// "Look inside" re-enumerates a single directory on demand instead, which is a
 /// few milliseconds for one level.
-final class ScanNode {
+/// ## Thread safety
+///
+/// `@unchecked Sendable` on an ownership rule, not on a lock: **exactly one
+/// worker mutates a node at a time.** A node is created and filled by the worker
+/// that walks it; when a subtree is handed to another worker, the handing worker
+/// attaches the node and then never touches its contents again. Anything that
+/// needs to combine work from two workers — rolling a handed-off subtree into
+/// its parent — happens in a single-threaded pass after every worker has
+/// stopped. See `FileTreeWalker.joinHandedOffSubtrees`.
+final class ScanNode: @unchecked Sendable {
 
     let path: String
     let name: String

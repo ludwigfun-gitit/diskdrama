@@ -211,6 +211,7 @@
 		AA000000000000000000000D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = DiskDrama;
 				CODE_SIGN_ENTITLEMENTS = DiskDrama.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -224,7 +225,6 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				ASSETCATALOG_COMPILER_APPICON_NAME = DiskDrama;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bloo.diskdrama;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -239,6 +239,7 @@
 					arm64,
 					x86_64,
 				);
+				ASSETCATALOG_COMPILER_APPICON_NAME = DiskDrama;
 				CODE_SIGN_ENTITLEMENTS = DiskDrama.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -252,7 +253,6 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				ASSETCATALOG_COMPILER_APPICON_NAME = DiskDrama;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bloo.diskdrama;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
