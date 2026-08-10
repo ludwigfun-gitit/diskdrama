@@ -403,25 +403,45 @@ enum KnowledgeBase {
         )
     }
 
-    /// A directory the filesystem itself struggles with is a finding, not just a
-    /// slow patch of the scan.
+    /// A directory holding a pathological number of entries is a finding, not
+    /// just a slow patch of the scan.
     ///
-    /// Discovered the hard way in Step 3: an Xcode index datastore on this machine
-    /// holds 3.7 million entries in a single directory with a 113 MB directory
-    /// inode. Finder, System Settings → Storage and treemap tools all show it as
-    /// unremarkable, because they report bytes and this is a problem of *entry
-    /// count*. It slows every backup, every Spotlight pass and every scan that
-    /// touches it. Surfacing it is squarely what this app is for.
-    static func slowDirectoryFinding(path: String, name: String, seconds: TimeInterval) -> Classification {
+    /// The `Index.noindex` case: millions of tiny files, unremarkable in Finder
+    /// because Finder reports bytes and this is a problem of *entry count*.
+    ///
+    /// ## Not `.safe`, and not a short-circuit
+    ///
+    /// Both of those were wrong, and dangerously so. This was `tier: .safe` and
+    /// was checked *before* classification and descent, so the first big
+    /// slow-to-list folder at any level — on a normal Mac, `~/Library` itself —
+    /// became a blanket one-click "safe to delete" covering 156 GB, in the tier
+    /// whose own copy reads "nothing here is something you made". Nothing about
+    /// a high entry count says the contents are disposable.
+    ///
+    /// It now takes the same posture as `unknown()` next door: `.reviewFirst`,
+    /// confidence 0, look inside before deciding. That is the rule stated at the
+    /// top of this file — a gap should produce an over-careful recommendation,
+    /// never a dangerous one — and this finding is a gap, not knowledge.
+    ///
+    /// ## Driven by count, not by the clock
+    ///
+    /// The trigger used to be elapsed seconds, which is a measurement of the
+    /// scan rather than a property of the disk. Step 18 demonstrated the
+    /// consequence: parallelising the walk moved the count of "slow" directories
+    /// from 34 to 17 on an unchanged disk, and two identical parallel runs gave
+    /// 17 and 29 — recommendations that shifted because the Mac was busier, not
+    /// because anything on disk had changed. The title already claimed "very
+    /// large number of files"; the trigger now measures that.
+    static func crowdedDirectoryFinding(path: String, name: String, fileCount: Int) -> Classification {
         Classification(
             key: "pathological.directory",
-            tier: .safe,
+            tier: .reviewFirst,
             title: "\(name) — very large number of files",
-            whatThisIs: "This folder took \(Int(seconds)) seconds just to list. That means an enormous number of entries rather than large files, which is why it looks unremarkable in Finder.",
-            consequence: "A folder this shape slows down backups, Spotlight and any tool that walks your disk. If it's a build or index folder it regenerates; check what it belongs to before removing it.",
+            whatThisIs: "This folder holds \(ByteFormat.count(fileCount)) files. That is an enormous number of entries rather than a few large ones, which is why it looks unremarkable in Finder — Finder reports bytes.",
+            consequence: "A folder this shape slows down backups, Spotlight and any tool that walks your disk. But a high file count says nothing about whether the contents matter: I could not identify what is in here, so treat it as yours until you have looked inside.",
             rebuildCost: nil,
             owningApp: nil,
-            confidence: 0.7
+            confidence: 0
         )
     }
 }

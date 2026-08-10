@@ -77,6 +77,14 @@ enum RecommendationBuilder {
     /// unreachable. A 60 MB `node_modules` in a 60 MB project was invisible.
     /// The floor now follows the most permissive rule, so traversal is never
     /// the thing that decides what is classifiable.
+    /// Entries in one subtree past which the shape itself is worth reporting.
+    ///
+    /// Matches `DirectoryPreview.enumerationCeiling`, which is the count at which
+    /// the app already declines to list a folder's contents — so this is the app
+    /// agreeing with itself about what "too many to deal with" means, rather than
+    /// a second number invented here.
+    static let crowdedDirectoryFileCount = 200_000
+
     static var descendFloorBytes: Int64 {
         min(unknownItemFloorBytes / 10, KnowledgeBase.smallestRuleMinimumBytes)
     }
@@ -92,10 +100,9 @@ enum RecommendationBuilder {
 
         // Paths that took pathologically long to enumerate, so the finding can be
         // attached to the node when the walk reaches it in this pass.
-        let slowByPath = Dictionary(
-            result.slowDirectories.map { ($0.path, $0.seconds) },
-            uniquingKeysWith: { first, _ in first }
-        )
+        // `result.slowDirectories` is still collected and still surfaced as scan
+        // diagnostics, but it no longer decides anything a user can act on. It
+        // measures how the scan went, not what is on the disk.
 
         /// Walks a subtree, deciding at each node whether it is a recommendation,
         /// and — crucially — whether to keep descending.
@@ -105,16 +112,6 @@ enum RecommendationBuilder {
             // F19 exclusion, which never gets here at all.
             if ignoredPaths.contains(node.path) || snoozedPaths.contains(node.path) {
                 return
-            }
-
-            if let slowSeconds = slowByPath[node.path] {
-                recommendations.append(Recommendation(
-                    path: node.path, name: node.name,
-                    classification: KnowledgeBase.slowDirectoryFinding(
-                        path: node.path, name: node.name, seconds: slowSeconds),
-                    sizeBytes: node.sizeBytes, logicalBytes: node.logicalBytes,
-                    fileCount: node.fileCount, newestModifiedAt: node.newestModifiedAt))
-                return   // the finding is about this folder; do not also list its parts
             }
 
             if let (rule, classification) = KnowledgeBase.classify(path: node.path, name: node.name) {
@@ -141,7 +138,26 @@ enum RecommendationBuilder {
             // A large unmatched leaf — nothing recognised it and nothing beneath it
             // was worth exploring — is offered for review with an explicit "I don't
             // know what this is", never a confident guess.
-            if !descended && node.sizeBytes >= unknownItemFloorBytes && node.depth > 0 {
+            //
+            // The crowded-directory finding shares this slot rather than
+            // pre-empting it. It used to run *before* classification and descent
+            // and return immediately, so a folder that happened to be slow to
+            // list never got looked inside — `~/Library` became one blanket
+            // recommendation and the real caches within it were never found. Now
+            // a folder only earns this finding if descending failed to identify
+            // anything, which is the same bar `unknown()` has always had.
+            //
+            // Preferred over `unknown()` when both apply, because "this holds
+            // 800,000 files" is a more useful thing to tell someone than "I don't
+            // recognise this".
+            if !descended && node.depth > 0, node.fileCount >= crowdedDirectoryFileCount {
+                recommendations.append(Recommendation(
+                    path: node.path, name: node.name,
+                    classification: KnowledgeBase.crowdedDirectoryFinding(
+                        path: node.path, name: node.name, fileCount: node.fileCount),
+                    sizeBytes: node.sizeBytes, logicalBytes: node.logicalBytes,
+                    fileCount: node.fileCount, newestModifiedAt: node.newestModifiedAt))
+            } else if !descended && node.sizeBytes >= unknownItemFloorBytes && node.depth > 0 {
                 recommendations.append(Recommendation(
                     path: node.path, name: node.name,
                     classification: KnowledgeBase.unknown(name: node.name),

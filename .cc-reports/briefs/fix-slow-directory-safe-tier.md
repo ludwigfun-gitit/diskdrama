@@ -74,6 +74,30 @@ Accessibility is down again when you get to this, say so plainly rather
 than substituting a code-path check for this one — this fix's entire point
 is a UI-visible failure mode.
 
+## Update — confirmed independently by step18
+
+The parallel-scan-engine work (step18) hit this same bug from a different
+angle: recommendations shifted between a serial and a parallel run of the
+same disk (7 safe items / 203.3 GB → 5 items / 158.0 GB), traced to this
+exact mechanism. That report adds something this brief didn't have: the
+`slowByPath` trigger is elapsed **wall-clock seconds**, not a property of
+the disk — so which folders count as "slow" depends on how busy the Mac
+was and, now, how many workers were free. Parallelism alone moved the count
+from 34 slow directories to 17 on an unchanged disk. Two identical parallel
+runs produced 17 and 29.
+
+Fold this in as a required third part of the fix, not just the tier and the
+short-circuit:
+
+3. **Trigger on file count, not elapsed time.** The finding's own title
+   already says "very large number of files" — make the trigger match that
+   claim instead of a timing side-effect. Deterministic, and it removes the
+   run-to-run variance entirely rather than just capping its blast radius.
+   `slowDirectoryFinding`'s copy may need a small adjustment if it currently
+   references "took N seconds" — keep the diagnostic content, just drive it
+   off a count threshold instead of a timer.
+
 ## Not in scope
-The parallel-scan-engine brief, anything else currently in flight. This is
-its own fix, independent of that work.
+The parallel-scan-engine work itself — already built and shipped
+separately. This brief is only the classification fix; don't touch the
+worker/queue code.
