@@ -77,6 +77,35 @@ enum RecommendationBuilder {
     /// unreachable. A 60 MB `node_modules` in a 60 MB project was invisible.
     /// The floor now follows the most permissive rule, so traversal is never
     /// the thing that decides what is classifiable.
+    /// Guarantees the list is an antichain: no row is inside another row.
+    ///
+    /// Every size here is a subtree total, so a row nested inside another row is
+    /// the same bytes counted twice. Four rows down one Chrome cache chain read
+    /// as 6.6 GB of savings when deleting the top one frees 2.4 GB — a cleanup
+    /// tool overstating what it can reclaim, which is the one direction it must
+    /// never err in.
+    ///
+    /// The matchers are what should prevent this — `.childOf` for the catch-all,
+    /// `isTerminal` everywhere else — and after those, this finds nothing. It
+    /// stays because "the numbers add up" is a property worth enforcing where it
+    /// is stated rather than hoping every future rule preserves it by
+    /// construction.
+    ///
+    /// Keeps the outermost row when it does fire: the ancestor's total already
+    /// includes the descendant, so dropping the ancestor would lose bytes, while
+    /// dropping the descendant loses only detail the user can still reach by
+    /// looking inside the row that remains.
+    private static func withoutNestedRows(_ rows: [Recommendation]) -> [Recommendation] {
+        var kept: [Recommendation] = []
+        // Shallowest first, so an ancestor is always considered before anything
+        // beneath it regardless of relative size.
+        for row in rows.sorted(by: { $0.path.count < $1.path.count }) {
+            let isInsideAKeptRow = kept.contains { row.path.hasPrefix($0.path + "/") }
+            if !isInsideAKeptRow { kept.append(row) }
+        }
+        return kept.sorted { $0.sizeBytes > $1.sizeBytes }
+    }
+
     /// Entries in one subtree past which the shape itself is worth reporting.
     ///
     /// Matches `DirectoryPreview.enumerationCeiling`, which is the count at which
@@ -184,6 +213,8 @@ enum RecommendationBuilder {
         // Largest first within the whole set; the UI groups by tier and inherits
         // this ordering inside each group, which is F08's stated sort.
         recommendations.sort { $0.sizeBytes > $1.sizeBytes }
+
+        recommendations = withoutNestedRows(recommendations)
 
         return RecommendationSet(
             recommendations: recommendations,

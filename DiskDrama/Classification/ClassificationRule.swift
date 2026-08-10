@@ -63,6 +63,15 @@ enum PathMatcher: Sendable {
     case named(String)
     /// Path begins with this, `~` expanded. Catches a whole subtree.
     case under(String)
+    /// An *immediate* child of this directory, `~` expanded — the directory
+    /// itself does not match, and neither does anything deeper.
+    ///
+    /// Exists for catch-alls over a container of unrelated things. `.under`
+    /// re-matches at every level, so a non-terminal rule using it recommends the
+    /// container, then each child, then each grandchild, all from the same rule —
+    /// which is how `~/Library/Caches` came to appear alongside four of its own
+    /// descendants in one list.
+    case childOf(String)
     /// Final component equals `name` AND some ancestor's final component equals
     /// `parent`. Distinguishes a Rust `target/` (next to `src/`) from a folder
     /// someone happened to call target.
@@ -77,6 +86,10 @@ enum PathMatcher: Sendable {
         case .under(let value):
             let root = Self.expand(value)
             return path == root || path.hasPrefix(root + "/")
+        case .childOf(let value):
+            let root = Self.expand(value)
+            guard path.hasPrefix(root + "/") else { return false }
+            return !path.dropFirst(root.count + 1).contains("/")
         case .namedUnder(let value, let parent):
             guard name == value else { return false }
             return path.contains("/" + parent + "/")

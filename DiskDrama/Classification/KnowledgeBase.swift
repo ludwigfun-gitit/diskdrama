@@ -305,7 +305,14 @@ enum KnowledgeBase {
 
         ClassificationRule(
             key: "generic.caches",
-            matcher: .under("~/Library/Caches"),
+            // One row per app, not one per directory at every depth. `.under`
+            // matched the container and every level beneath it, and with
+            // `isTerminal: false` each of those levels became its own
+            // recommendation from this same rule — 54 of 89 rows nested inside
+            // another row, 15.7 GB counted more than once. Every specific cache
+            // rule above is itself an immediate child of this directory, so
+            // matching children only costs nothing in coverage.
+            matcher: .childOf("~/Library/Caches"),
             tier: .safe,
             title: "Application cache",
             whatThisIs: "Cached data written by an installed application. Apps are expected to regenerate anything they keep here.",
@@ -313,8 +320,7 @@ enum KnowledgeBase {
             // Deliberately lower: the folder is *conventionally* disposable, but
             // some apps misuse it for state they never rebuild. High enough to
             // land in Tier 1, low enough that the UI says so plainly.
-            confidence: 0.75,
-            isTerminal: false
+            confidence: 0.75
         ),
     ]
 
