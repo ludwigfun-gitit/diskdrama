@@ -11,6 +11,51 @@ import SwiftUI
 // MARK: - Buttons
 
 /// Solid accent. The one primary action in any given context.
+/// A focus ring drawn at the control's own geometry.
+///
+/// AppKit's ring is a fixed shape applied around the focused view's bounds. On
+/// DiskDrama's controls — which are continuous-curvature rounded rectangles at
+/// several different radii — it lands square against rounded corners: clipping
+/// through the fill on tight radii, floating loose of it on wide ones. The
+/// previous pass gave the styles a `contentShape`, which fixed a ring anchored
+/// to the *wrong rect*; it could not fix the *shape* of the ring, because that
+/// is not something `contentShape` controls.
+///
+/// So the system effect is switched off and the ring is drawn here, from the
+/// same radius the control fills itself with. One value, used twice, which is
+/// what stops the two drifting apart.
+///
+/// Kept, not removed: keyboard navigation needs a visible focus indicator, and
+/// this ticket was about making it fit rather than making it go away.
+struct FocusRing: ViewModifier {
+    var cornerRadius: CGFloat
+    @FocusState private var isFocused: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .focused($isFocused)
+            .focusEffectDisabled()
+            .overlay {
+                if isFocused {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(Theme.accent, lineWidth: 3)
+                        // Sits just outside the fill, the way AppKit's does, so
+                        // it reads as a ring around the control rather than a
+                        // border on it.
+                        .padding(-2.5)
+                }
+            }
+            .animation(Theme.transition, value: isFocused)
+    }
+}
+
+extension View {
+    /// Applies a focus ring matching this control's corner radius.
+    func focusRing(cornerRadius: CGFloat) -> some View {
+        modifier(FocusRing(cornerRadius: cornerRadius))
+    }
+}
+
 struct AccentButtonStyle: ButtonStyle {
     var height: CGFloat = 28
     var horizontalPadding: CGFloat = 13
@@ -43,6 +88,7 @@ struct AccentButtonStyle: ButtonStyle {
             // the fill. `GhostButtonStyle` had this from the start, which is why
             // its rings were always correct; the accent and quiet styles did not.
             .contentShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+            .focusRing(cornerRadius: Theme.controlRadius)
             .brightness(isHovering && isEnabled ? 0.06 : 0)
             .shadow(color: isHovering && isEnabled ? Theme.accent.opacity(0.30) : .black.opacity(0.20),
                     radius: isHovering && isEnabled ? 8 : 1, y: isHovering && isEnabled ? 0 : 1)
@@ -75,6 +121,7 @@ struct GhostButtonStyle: ButtonStyle {
             )
             .opacity(isEnabled ? 1 : 0.4)
             .contentShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+            .focusRing(cornerRadius: Theme.controlRadius)
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
             .animation(Theme.transition, value: configuration.isPressed)
             .animation(Theme.transition, value: isHovering)
@@ -99,6 +146,7 @@ struct QuietButtonStyle: ButtonStyle {
             .background(isHovering ? Theme.hover : .clear,
                         in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .focusRing(cornerRadius: 8)
             .animation(Theme.transition, value: isHovering)
             .onHover { isHovering = $0 }
     }
@@ -147,6 +195,13 @@ struct RowBadge: View {
 struct Callout: View {
     let text: String
     var symbol: String = "info.circle"
+    /// Optional heading. A callout that states a policy reads better with one;
+    /// a one-line aside does not need it.
+    var title: String? = nil
+    /// Optional trailing action, for a callout the user can actually do
+    /// something about.
+    var actionLabel: String? = nil
+    var action: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 11) {
@@ -154,12 +209,23 @@ struct Callout: View {
                 .font(.system(size: 14, weight: .regular))
                 .foregroundStyle(Theme.text3)
                 .padding(.top, 1)
-            Text(text)
-                .font(Theme.body(13))
-                .lineSpacing(3)
-                .foregroundStyle(Theme.text2)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 3) {
+                if let title {
+                    Text(title)
+                        .font(Theme.ui(13, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                }
+                Text(text)
+                    .font(Theme.body(13))
+                    .lineSpacing(3)
+                    .foregroundStyle(Theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            if let actionLabel, let action {
+                Button(actionLabel, action: action)
+                    .buttonStyle(GhostButtonStyle(height: 26, horizontalPadding: 11, fontSize: 12.5))
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)

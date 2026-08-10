@@ -43,12 +43,14 @@ final class AppModel {
         case delete(Recommendation)
         case batchClean(Tier)
         case target
+        case blindSpots
 
         var id: String {
             switch self {
             case .delete(let item):  "delete-\(item.path)"
             case .batchClean(let t): "batch-\(t.rawValue)"
             case .target:            "target"
+            case .blindSpots:        "blindSpots"
             }
         }
     }

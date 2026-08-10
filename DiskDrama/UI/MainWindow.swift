@@ -33,6 +33,7 @@ struct MainWindow: View {
             case .delete(let item):  DeleteConfirmSheet(model: model, item: item)
             case .batchClean(let t): BatchCleanSheet(model: model, tier: t)
             case .target:            TargetSheet(model: model)
+            case .blindSpots: BlindSpotsSheet(model: model, onScan: onScan)
             }
         }
     }

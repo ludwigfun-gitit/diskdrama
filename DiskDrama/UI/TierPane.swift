@@ -169,7 +169,7 @@ struct TierPane: View {
     @ViewBuilder
     private var notOnThisList: some View {
         if tier == .reviewFirst, let excluded = notOnThisListText {
-            Callout(text: excluded).padding(.top, 10)
+            Callout(text: excluded, title: "Not recommended for cleanup").padding(.top, 10)
         }
     }
 
@@ -181,9 +181,11 @@ struct TierPane: View {
             .prefix(2)
         guard !notable.isEmpty else { return nil }
         let phrases = notable.map { "\($0.name) (\(ByteFormat.compact($0.sizeBytes)))" }
-        return "Not on this list: \(phrases.joined(separator: " and ")). "
-            + "\(notable.count == 1 ? "It's" : "They're") among the biggest things on the disk and I'd leave "
-            + "\(notable.count == 1 ? "it" : "both") alone."
+        let subject = phrases.joined(separator: " and ")
+        let verb = notable.count == 1 ? "is" : "are"
+        let pronoun = notable.count == 1 ? "It contains" : "They contain"
+        return "\(subject) \(verb) scanned but excluded from recommendations. "
+            + "\(pronoun) data managed by apps and Photos, where deletions can break apps or lose photos."
     }
 
     /// F06 is explicit that unreadable locations are recorded and shown, never
@@ -194,11 +196,14 @@ struct TierPane: View {
         let spots = model.blindSpots
         if !spots.isEmpty {
             let missingAccess = spots.filter { $0.reason == .fullDiskAccessMissing }.count
+            let noun = spots.count == 1 ? "location" : "locations"
             Callout(
                 text: missingAccess > 0
-                    ? "I couldn't read \(spots.count) location\(spots.count == 1 ? "" : "s") — \(missingAccess) of them need Full Disk Access. The totals above are a floor, not the whole picture."
-                    : "I couldn't read \(spots.count) location\(spots.count == 1 ? "" : "s"), so the totals above are a floor rather than the whole picture.",
-                symbol: "eye.slash")
+                    ? "\(spots.count) \(noun) couldn't be read — \(missingAccess) need Full Disk Access. Totals are a floor, not the full picture."
+                    : "\(spots.count) \(noun) couldn't be read. Totals are a floor, not the full picture.",
+                symbol: "eye.slash",
+                actionLabel: "Show list",
+                action: { model.activeSheet = .blindSpots })
             .padding(.top, 10)
         }
     }

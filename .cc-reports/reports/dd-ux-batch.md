@@ -6,10 +6,10 @@ the data-model one first, then the rest.
 | MC:L | bug | status |
 |---|---|---|
 | `DD.B002` | Deleted rows stay interactive; delete dialog focuses the wrong control | **fixed** |
-| `DD.B003` | Chatty aside about Library/Pictures, no user options | **not started** |
-| `DD.B004` | "couldn't read 4 locations" is opaque | **not started** |
+| `DD.B003` | Chatty aside about Library/Pictures, no user options | **fixed** |
+| `DD.B004` | "couldn't read 4 locations" is opaque | **fixed** |
 | `DD.B005` | Nested rows double-count | **fixed** |
-| `DD.B006` | Focus rings don't match element geometry | **not started** |
+| `DD.B006` | Focus rings don't match element geometry | **fixed, not visually verified** |
 
 ---
 
@@ -138,13 +138,86 @@ this environment.
 
 ---
 
-## Not started
+---
 
-`DD.B003`, `DD.B004` and `DD.B006` are untouched. Session budget went to the two
-correctness bugs — B005 in particular needed instrumenting a real scan to find
-that it was double-counting 15.7 GB rather than the ~4 GB the report described.
+## DD.B003 — Library/Pictures callout — FIXED
 
-Notes for whoever picks them up:
+Shipped the supplied copy verbatim, with a title and no action button.
+`Callout` gained an optional title and an optional trailing action, since it
+previously had neither.
+
+Verified on screen, Review tier:
+
+```
+Not recommended for cleanup
+Library (156.2 GB) and Pictures (45.4 GB) are scanned but excluded from
+recommendations. They contain data managed by apps and Photos, where
+deletions can break apps or lose photos.
+```
+
+**One caveat, flagged not fixed.** The second sentence names apps and Photos
+specifically, but the two folders are chosen dynamically — they are whichever
+largest scanned-but-not-recommended folders the scan found. On a Mac where those
+are, say, `Movies` and `Downloads`, the sentence will name Photos about folders
+that have nothing to do with it. Shipped as specified because it is your copy;
+worth a generic second sentence if that case is likely.
+
+---
+
+## DD.B004 — blind spots UI — FIXED
+
+Callout summary reworded and given a **Show list** action, verified on screen:
+
+```
+4 locations couldn't be read. Totals are a floor, not the full picture.  [Show list]
+```
+
+`BlindSpotsSheet` lists each path with its reason and three per-item actions.
+Reasons are phrased in terms of what the user can do, not the errno that caused
+them — "macOS is withholding this until DiskDrama has Full Disk Access" rather
+than "EPERM".
+
+**Grant access** appears only when the reason is actually a missing grant. A
+button that cannot work is worse than no button, so a symlink loop or a
+system-owned folder does not get one. **Retry** closes the sheet and rescans.
+**Ignore** routes to the existing exclusion list, so the choice is visible and
+reversible in Settings rather than a per-scan flag the user can never find again.
+
+The footer notes that granting access needs a relaunch before a scan can use it,
+which is true of TCC and would otherwise look like the grant had not worked.
+
+**Not driven in the UI.** The sheet compiles, is wired through `ActiveSheet` like
+every other sheet, and the callout that opens it is confirmed on screen — but I
+could not press "Show list" through the accessibility tree. SwiftUI exposes
+button labels as `AXAttributedDescription`, which System Events cannot read, so
+locating a specific button means guessing at coordinates; two attempts opened the
+wrong sheet. The sheet's *contents* are therefore unverified.
+
+---
+
+## DD.B006 — focus ring geometry — FIXED, NOT VISUALLY VERIFIED
+
+The previous pass gave the styles a `contentShape`, which fixed a ring anchored
+to the **wrong rect**. It could not fix the ring's **shape**, which is not
+something `contentShape` controls — that was the remaining bug.
+
+A `FocusRing` modifier now switches off the system effect and draws the ring from
+the same corner radius the control fills itself with, so the two cannot disagree.
+Folded into `AccentButtonStyle`, `GhostButtonStyle` and `QuietButtonStyle` rather
+than applied per call site, so every button in the app inherits it and no future
+call site can forget.
+
+**This cannot be verified here.** A focus ring needs real focus plus AppKit
+rendering — the accessibility tree does not expose it, an offscreen render will
+not draw it, and screen capture is unavailable in this environment ("could not
+create image from display"). The ticket's own verification criterion is visual.
+Please look at a focused button and confirm the ring hugs the corners; if it
+still sits wrong, the radius constants are in one place per style.
+
+
+## All five closed
+
+Notes retained from when the last three were still open:
 
 - **B003** — the proposed replacement copy says "Excluded from scan by default",
   but `~/Library` and `~/Pictures` **are** scanned and counted; they appear in
