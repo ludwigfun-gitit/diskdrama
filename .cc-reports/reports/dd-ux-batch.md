@@ -5,11 +5,11 @@ the data-model one first, then the rest.
 
 | MC:L | bug | status |
 |---|---|---|
-| `DD.B002` | Deleted rows stay interactive; delete dialog focuses the wrong control | in progress |
-| `DD.B003` | Chatty aside about Library/Pictures, no user options | in progress |
-| `DD.B004` | "couldn't read 4 locations" is opaque | in progress |
+| `DD.B002` | Deleted rows stay interactive; delete dialog focuses the wrong control | **fixed** |
+| `DD.B003` | Chatty aside about Library/Pictures, no user options | **not started** |
+| `DD.B004` | "couldn't read 4 locations" is opaque | **not started** |
 | `DD.B005` | Nested rows double-count | **fixed** |
-| `DD.B006` | Focus rings don't match element geometry | in progress |
+| `DD.B006` | Focus rings don't match element geometry | **not started** |
 
 ---
 
@@ -91,3 +91,74 @@ already ships a drill-in for exactly this — "Look inside" (F10) enumerates a
 row's children, and F13 descends into them with a breadcrumb back — so the
 capability exists, just not as an inline disclosure triangle on the row. Worth
 deciding whether the existing affordance is enough before building a second one.
+
+---
+
+## DD.B002 — deleted items remain interactive — FIXED
+
+### The row was not the problem
+
+`items(in:)` already filters `deletedPaths`, so a deleted top-level row does
+leave the list. The ghost was the **drill stack**: `detailItem` reads
+`drillStackByTier` *before* the selection, and nothing ever removed a deleted
+path from it. Descend into a child, delete it, and the panel kept showing that
+folder with a live Delete button while its row was already gone from the list.
+
+Deleting now clears the path — and anything beneath it, since deleting a folder
+deletes its contents — from every drill stack and selection.
+
+### Scan-vs-reality is resolved before the dialog, not inside it
+
+`presentDeleteSheet` now checks the item is still on disk (one `lstat`, no
+`URL`, so §5.1 does not apply — and only on invoke, never per row per render).
+If it has gone, the item is dropped from the list and the reason is said inline
+instead of opening a confirmation for something that no longer exists.
+
+That message needed somewhere to live: the only place `deletionError` surfaced
+was inside the delete sheets, which does not work when the answer is "there is
+no sheet". The results view now carries a dismissible notice.
+
+**Verified live** on a disposable tree, with the folder removed by `rm` behind
+the app's back:
+
+```
+sheets opened: 0
+“node_modules” isn't there any more — something else removed it since the
+last scan. I've taken it off the list.
+reclaimable: 220 MB → 94 MB
+```
+
+### Focus
+
+`@FocusState` plus `.defaultFocus` puts initial focus on the destructive primary
+button. Previously the first focusable control took it — the Trash checkbox — so
+return toggled a setting rather than confirming. Applied but **not visually
+verified**: focus rings need a screenshot, and screen capture is unavailable in
+this environment.
+
+---
+
+## Not started
+
+`DD.B003`, `DD.B004` and `DD.B006` are untouched. Session budget went to the two
+correctness bugs — B005 in particular needed instrumenting a real scan to find
+that it was double-counting 15.7 GB rather than the ~4 GB the report described.
+
+Notes for whoever picks them up:
+
+- **B003** — the proposed replacement copy says "Excluded from scan by default",
+  but `~/Library` and `~/Pictures` **are** scanned and counted; they appear in
+  that callout precisely because they are the largest things the scan found that
+  it will not recommend deleting. Shipping that wording would trade a chatty
+  truth for a tidy falsehood. The intent — less chatty, give the user an option —
+  is right; the wording needs to say "scanned, not recommended" instead. Worth
+  settling before implementing.
+- **B004** — the data already exists. `ScanResult.blindSpots` carries a path and
+  a `BlindSpotReason` for each, and `FullDiskAccess.openSystemSettings()` is
+  already wired for the Grant-access deep link. This is UI work over data that is
+  already there, not new plumbing.
+- **B006** — partially attempted earlier in the session: `AccentButtonStyle` and
+  `QuietButtonStyle` gained a `contentShape` matching their corner radius, which
+  fixed a ring that was anchored to the wrong rect entirely. The remaining work
+  is the radius mismatch this ticket describes, which likely needs
+  `focusEffectDisabled` plus a `@FocusState`-driven overlay per the ticket.

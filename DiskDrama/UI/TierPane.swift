@@ -47,6 +47,7 @@ struct TierPane: View {
             }
 
             reducedModeBanner
+            deletionNotice
 
             if items.isEmpty {
                 emptyState
@@ -58,6 +59,31 @@ struct TierPane: View {
                     ExplanationPanel(model: model, tier: tier, item: detail)
                 }
             }
+        }
+    }
+
+    /// Something went wrong, or resolved itself, outside a confirmation dialog.
+    ///
+    /// The only place this used to appear was inside the delete sheets, which
+    /// works right up until the answer is "there is no sheet" — an item that has
+    /// already been removed by something else is now taken off the list without
+    /// opening one, and that has to be sayable somewhere.
+    @ViewBuilder
+    private var deletionNotice: some View {
+        if let message = model.deletionError, model.activeSheet == nil {
+            HStack(spacing: 11) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 13)).foregroundStyle(Theme.text3)
+                Text(message)
+                    .font(Theme.body(12.5)).foregroundStyle(Theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button("Dismiss") { model.deletionError = nil }
+                    .buttonStyle(QuietButtonStyle(height: 24, fontSize: 12))
+            }
+            .padding(.horizontal, 26).padding(.vertical, 10)
+            .background(Theme.panel)
+            .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
         }
     }
 

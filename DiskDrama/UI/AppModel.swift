@@ -132,6 +132,17 @@ final class AppModel {
     var deletionError: String?
 
     func presentDeleteSheet(for item: Recommendation) {
+        // Something else may have removed it since the scan. Resolving that here
+        // rather than inside the confirmation is the difference between "this is
+        // already gone" and asking someone to confirm deleting nothing — the
+        // dialog used to open, and only then explain itself.
+        guard Self.stillExists(item.path) else {
+            deletedPaths.insert(item.path)
+            forgetDeleted(item.path)
+            deletionError = "“\(item.name)” isn't there any more — something else removed it since the last scan. I've taken it off the list."
+            onReclaimableChanged?()
+            return
+        }
         moveToTrash = Self.defaultsToTrash(for: [item])
         deletionError = nil
         activeSheet = .delete(item)
@@ -173,6 +184,7 @@ final class AppModel {
             let outcome = try await DeletionService.perform(item, mode: mode)
             record(outcome, batchID: batchID)
             deletedPaths.insert(outcome.path)
+            forgetDeleted(outcome.path)
             if mode == .trash {
                 trashedThisSessionBytes += outcome.sizeBytes
             } else {
@@ -638,6 +650,37 @@ final class AppModel {
             return match
         }
         return items.first
+    }
+
+    /// Drops a path that has just been deleted from every place the UI could
+    /// still hand it back to the user.
+    ///
+    /// The list itself was already safe — `items(in:)` filters `deletedPaths`.
+    /// The drill stack was not: descend into a child, delete it, and
+    /// `detailItem` kept returning it because it reads the stack before the
+    /// selection. The row was gone from the list while the panel still showed
+    /// the folder with a live Delete button on it.
+    ///
+    /// Anything *below* the deleted path goes too — deleting a folder deletes
+    /// everything under it, so a breadcrumb pointing inside it is equally stale.
+    private func forgetDeleted(_ path: String) {
+        for (tier, stack) in drillStackByTier {
+            let kept = stack.filter { $0.path != path && !$0.path.hasPrefix(path + "/") }
+            if kept.count != stack.count { drillStackByTier[tier] = kept }
+        }
+        for (tier, selected) in selectionByTier
+        where selected == path || selected.hasPrefix(path + "/") {
+            selectionByTier[tier] = nil
+        }
+    }
+
+    /// Whether the item is still on disk.
+    ///
+    /// Cheap — one `lstat`, no `URL`, so §5.1's File-Provider hazard does not
+    /// apply. Called when a delete is invoked, not per row per render.
+    static func stillExists(_ path: String) -> Bool {
+        var info = stat()
+        return lstat(path, &info) == 0
     }
 
     func select(_ recommendation: Recommendation, in tier: Tier) {

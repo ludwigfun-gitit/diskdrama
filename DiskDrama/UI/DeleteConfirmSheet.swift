@@ -22,6 +22,15 @@ struct DeleteConfirmSheet: View {
         DeletionService.guardPath(item.path)
     }
 
+    /// Focus target for the sheet.
+    ///
+    /// Without this the first focusable control takes it, which is the Trash
+    /// checkbox — so return committed nothing and the highlighted control was a
+    /// toggle. Finder's Empty Trash and the system's other destructive
+    /// confirmations focus the destructive button, and this now matches.
+    private enum Field: Hashable { case confirm }
+    @FocusState private var focus: Field?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
             HStack(alignment: .top, spacing: 14) {
@@ -79,11 +88,15 @@ struct DeleteConfirmSheet: View {
                 // promises and must not look alike.
                 .buttonStyle(AccentButtonStyle(height: 32, horizontalPadding: 18, fontSize: 13.5,
                                                isDestructive: !model.moveToTrash))
+                .focused($focus, equals: .confirm)
                 .disabled(isWorking || refusal != nil)
             }
         }
         .padding(24)
         .frame(width: 500)
+        // Destructive primary, not the first focusable control — which was the
+        // Trash checkbox, so return toggled a setting instead of confirming.
+        .defaultFocus($focus, .confirm)
         .background(Theme.panel)
     }
 
