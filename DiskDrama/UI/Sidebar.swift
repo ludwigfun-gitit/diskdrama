@@ -55,19 +55,18 @@ struct Sidebar: View {
     }
 
     /// The one line in the sidebar that is allowed to be accent-colored: it is
-    /// the app's entire proposition in a sentence.
+    /// the app's entire proposition in five words.
     ///
-    /// It names what the figure is measured against instead of pointing at it.
-    /// "X of that is reclaimable" sat under "41.3 GB free of 494.4 GB", and the
-    /// nearest noun a reader grabs is *free* — which makes the sentence not just
-    /// vague but wrong, since reclaimable space is routinely larger than free
-    /// space. It is space currently in use that could be freed, not a share of
-    /// what is already empty. The only reading that works is "the disk as a
-    /// whole", several words back and past a more prominent candidate.
+    /// "Another" is doing the work that "X of that is reclaimable" failed at.
+    /// This sits directly under "40.6 GB free of 494.4 GB", so a pronoun grabs
+    /// *free* — and that reading is not just vague but impossible, since
+    /// reclaimable space is routinely larger than free space. It is space in use
+    /// that could be freed, i.e. space on top of what is already free, which is
+    /// precisely what "another" says.
     @ViewBuilder
     private var reclaimableLine: some View {
         if model.totalReclaimableBytes > 0 {
-            Text(reclaimableText)
+            Text("Another \(ByteFormat.compact(model.totalReclaimableBytes)) is reclaimable.")
                 .font(Theme.body(12.5))
                 .foregroundStyle(Theme.accent)
                 .fixedSize(horizontal: false, vertical: true)
@@ -83,16 +82,6 @@ struct Sidebar: View {
     }
 
     // MARK: - Tiers
-
-    /// States the quantity being measured against, rather than leaving a pronoun
-    /// to stand in for a number that is nowhere on screen. Falls back to the bare
-    /// figure when the volume cannot be read — an unanchored number is worse than
-    /// a wrong anchor, but inventing a total is worse than both.
-    private var reclaimableText: String {
-        let reclaimable = ByteFormat.compact(model.totalReclaimableBytes)
-        guard let info = model.disk.info else { return "\(reclaimable) is reclaimable." }
-        return "Of the \(ByteFormat.compact(info.usedBytes)) in use, \(reclaimable) is reclaimable."
-    }
 
     private var tierCards: some View {
         VStack(spacing: 6) {
