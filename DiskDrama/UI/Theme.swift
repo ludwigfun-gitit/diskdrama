@@ -91,6 +91,29 @@ enum Theme {
         return Color(hex: hex, alpha: opacities[index])
     }
 
+    /// The fourth sidebar card sits deliberately outside the tier hue.
+    ///
+    /// The three tiers are one blue at rising intensity because they are one
+    /// scale — increasing caution about deleting. "Not scanned" is not a fourth
+    /// point on that scale, it is the absence of a measurement, and colouring it
+    /// into the family would imply a confidence it does not have. Grey says
+    /// "no reading" without ranking itself against the three that have one.
+    static var unscannedFill: Color {
+        NSApp.effectiveAppearanceIsDark
+            ? Color(hex: 0xFFFFFF, alpha: 0.05)
+            : Color(hex: 0x000000, alpha: 0.04)
+    }
+
+    static var unscannedActiveGradient: LinearGradient {
+        LinearGradient(
+            colors: NSApp.effectiveAppearanceIsDark
+                ? [Color(hex: 0x3B3E46), Color(hex: 0x2C2E35)]
+                : [Color(hex: 0x5A5D66), Color(hex: 0x45474E)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
     /// Decorative only — wordmark, badges. Never a functional control.
     static var brandGradient: LinearGradient {
         LinearGradient(

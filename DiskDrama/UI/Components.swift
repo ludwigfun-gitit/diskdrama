@@ -349,7 +349,12 @@ enum PathDisplay {
         case home + "/Library/Mobile Documents":
             return "iCloud Drive"
         case home + "/Library/CloudStorage":
-            return "Cloud Storage (Google Drive, OneDrive, Dropbox, etc.)"
+            // A name, not a sentence. The provider list belongs in the
+            // explanation: at row width this title was long enough to lose its
+            // width fight with the row's other contents and render as a blank
+            // line — a location that was present in every count and visible
+            // nowhere, which is precisely the failure this pane exists to fix.
+            return "Cloud Storage"
         default:
             return nil
         }

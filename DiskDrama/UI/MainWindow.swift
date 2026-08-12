@@ -33,7 +33,6 @@ struct MainWindow: View {
             case .delete(let item):  DeleteConfirmSheet(model: model, item: item)
             case .batchClean(let t): BatchCleanSheet(model: model, tier: t)
             case .target:            TargetSheet(model: model)
-            case .blindSpots: BlindSpotsSheet(model: model, onScan: onScan)
             }
         }
     }
@@ -157,10 +156,16 @@ struct MainWindow: View {
                 // rather than the tier, and `TierPane` is rebuilt per tier, so
                 // anything inside it is duplicated across all three and remounts
                 // on every switch.
+                // The banners stay out here: they are full-width bars about the
+                // scan as a whole, and `TierPane` is rebuilt per tier, so
+                // anything inside it renders once per tier and remounts on every
+                // switch. Blind spots went the other way — they are now split
+                // across the tiers that recognise them, so they live inside.
                 VStack(spacing: 0) {
                     ResultsNotices(model: model, onScan: onScan)
                     TierPane(model: model, tier: tier, onScan: onScan)
                 }
+            case .unscanned:      UnscannedPane(model: model, onScan: onScan)
             case .changes:        ChangesPane(model: model)
             case .history:        HistoryPane(model: model)
             case .watching:       WatchingPane(model: model)

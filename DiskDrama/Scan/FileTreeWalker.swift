@@ -420,7 +420,19 @@ enum FileTreeWalker {
                 stack.last?.blindSpot = reason
 
             case FTS_NS, FTS_ERR, FTS_DC:
-                shared.noteBlindSpot(currentPath(), .unreadable)
+            // A stat that failed with EPERM is a permission wall, not a
+            // mystery. Reading `fts_errno` only under FTS_DNR meant a TCC-
+            // protected app container — where `lstat` itself is refused, so FTS
+            // reports FTS_NS rather than FTS_DNR — was filed as "unreadable".
+            // Downstream that became a wrong explanation ("an offline volume, a
+            // broken link") and, worse, a Retry button: retrying is offered for
+            // `.unreadable` precisely because that reason is meant to cover
+            // transient failures, and a permission wall is the one thing that
+            // never moves for being asked twice.
+                let reason: BlindSpotReason = entry.pointee.fts_errno == EPERM || entry.pointee.fts_errno == EACCES
+                    ? (hasFullDiskAccess ? .permissionDenied : .fullDiskAccessMissing)
+                    : .unreadable
+                shared.noteBlindSpot(currentPath(), reason)
 
             default:
                 break
@@ -568,7 +580,10 @@ enum FileTreeWalker {
                 shared.noteBlindSpot(String(cString: entry.pointee.fts_path), reason)
 
             case FTS_NS, FTS_ERR, FTS_DC:
-                shared.noteBlindSpot(String(cString: entry.pointee.fts_path), .unreadable)
+                let reason: BlindSpotReason = entry.pointee.fts_errno == EPERM || entry.pointee.fts_errno == EACCES
+                    ? (hasFullDiskAccess ? .permissionDenied : .fullDiskAccessMissing)
+                    : .unreadable
+                shared.noteBlindSpot(String(cString: entry.pointee.fts_path), reason)
 
             default:
                 break

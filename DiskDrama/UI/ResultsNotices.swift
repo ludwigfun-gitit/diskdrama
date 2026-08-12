@@ -6,22 +6,18 @@ import SwiftUI
 /// the blind spots — and every one of them used to live inside `TierPane`.
 /// `MainWindow` builds a fresh `TierPane` per selected tier, so the same
 /// sentence rendered under Safe to delete, App-managed and Review first, three
-/// times, remounting on every switch. A location that failed to read is not
-/// "safe" or "app-managed"; it has no tier and cannot be given one, so the honest
-/// place for it is above the tiers rather than repeated inside each.
+/// times, remounting on every switch. Blind spots left too, but the other
+/// way: most can be recognised from their path, so they sit in the tier that
+/// recognises them, and only the unrecognisable ones get a pane of their own.
 struct ResultsNotices: View {
 
     @Bindable var model: AppModel
     let onScan: () -> Void
 
-    /// Three or fewer fit inline; more would crowd the results out of the way.
-    private static let inlineBlindSpotLimit = 3
-
     var body: some View {
         VStack(spacing: 0) {
             reducedModeBanner
             deletionNotice
-            blindSpotNotice
         }
     }
 
@@ -94,58 +90,6 @@ struct ResultsNotices: View {
             .padding(.horizontal, 26).padding(.vertical, 10)
             .background(Theme.panel)
             .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
-        }
-    }
-
-    @ViewBuilder
-    private var blindSpotNotice: some View {
-        let spots = model.blindSpots.sorted { $0.path < $1.path }
-        if !spots.isEmpty {
-            let missingAccess = spots.filter { $0.reason == .fullDiskAccessMissing }.count
-            let noun = spots.count == 1 ? "location" : "locations"
-            let summary = missingAccess > 0
-                ? "\(spots.count) \(noun) missing from the totals — \(missingAccess) need Full Disk Access."
-                : "\(spots.count) \(noun) missing from the totals. Totals are a floor, not the full picture."
-
-            if spots.count <= Self.inlineBlindSpotLimit {
-                // A click to reveal two lines of text is a click that buys the
-                // user nothing. At this length the answer fits where the
-                // question is asked, and the sheet stays for when it doesn't.
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(summary)
-                        .font(Theme.body(13))
-                        .foregroundStyle(Theme.text2)
-                        .fixedSize(horizontal: false, vertical: true)
-                    ForEach(Array(spots.enumerated()), id: \.offset) { _, spot in
-                        HStack(alignment: .firstTextBaseline, spacing: 7) {
-                            Text(PathDisplay.friendlyName(spot.path) ?? PathDisplay.short(spot.path))
-                                .font(Theme.mono(11.5))
-                                .foregroundStyle(Theme.text)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Text(BlindSpotCopy.short(spot))
-                                .font(Theme.body(11.5))
-                                .foregroundStyle(Theme.text3)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: 0)
-                        }
-                    }
-                    Button("Details") { model.activeSheet = .blindSpots }
-                        .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
-                        .padding(.top, 1)
-                }
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .background(Theme.content, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(Theme.hairline, lineWidth: 1))
-                .padding(.top, 10)
-            } else {
-                Callout(text: summary,
-                        symbol: "eye.slash",
-                        actionLabel: "Show list",
-                        action: { model.activeSheet = .blindSpots })
-                .padding(.top, 10)
-            }
         }
     }
 }

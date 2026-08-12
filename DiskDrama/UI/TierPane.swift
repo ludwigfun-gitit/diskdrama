@@ -84,11 +84,44 @@ struct TierPane: View {
                 }
 
                 notOnThisList
+                blindSpotSection
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
         }
         .id(tier)   // resets tail expansion when the tier changes
+    }
+
+    /// The blind spots that belong to *this* tier.
+    ///
+    /// It sits at the foot of the list, inside it, where it inherits the list's
+    /// padding and reads as a footnote to the rows above — which is what it is.
+    /// Hoisting it to the top of the pane made it an interruption, and an
+    /// unpadded one.
+    @ViewBuilder
+    private var blindSpotSection: some View {
+        let spots = model.blindSpots(in: tier)
+        if !spots.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(spots.count == 1
+                     ? "One location on this list wasn't read, so this tier's total doesn't include it."
+                     : "\(spots.count) locations on this list weren't read, so this tier's total doesn't include them.")
+                    .font(Theme.body(12.5))
+                    .foregroundStyle(Theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(spots, id: \.path) { spot in
+                    if spot.path != spots.first?.path {
+                        Rectangle().fill(Theme.hairline).frame(height: 1)
+                    }
+                    BlindSpotRow(model: model, spot: spot, onScan: onScan)
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .background(Theme.content, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(Theme.hairline, lineWidth: 1))
+            .padding(.top, 10)
+        }
     }
 
     /// The Review tier states what it deliberately left out. Without this the

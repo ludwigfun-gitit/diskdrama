@@ -16,14 +16,32 @@ enum FileActions {
 
     /// F11 — the escape hatch for manual judgement. Selects the item in Finder
     /// rather than opening it, so the user lands on the thing itself.
+    /// Falls back to the nearest ancestor that can be opened.
+    ///
+    /// The guard used to return silently whenever `fileExists` said no, which
+    /// covers two very different cases: the item is gone, and the item is there
+    /// but macOS refuses to stat it. The second is common — every TCC-protected
+    /// app container answers that way — and it turned Reveal in Finder into a
+    /// button that did nothing at all, with the explanation going only to the
+    /// log. Landing the user in the enclosing folder answers the question they
+    /// actually asked ("what *is* this?") in every case, and `/` exists, so the
+    /// walk up cannot fall off the end.
     static func revealInFinder(path: String) {
         queue.async {
-            let url = URL(fileURLWithPath: path)
-            guard FileManager.default.fileExists(atPath: path) else {
-                Log.app.error("reveal failed — path no longer exists")
+            if FileManager.default.fileExists(atPath: path) {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
                 return
             }
-            NSWorkspace.shared.activateFileViewerSelecting([url])
+            var candidate = (path as NSString).deletingLastPathComponent
+            while candidate.count > 1 {
+                if FileManager.default.fileExists(atPath: candidate) {
+                    Log.app.info("reveal fell back to the enclosing folder")
+                    NSWorkspace.shared.open(URL(fileURLWithPath: candidate))
+                    return
+                }
+                candidate = (candidate as NSString).deletingLastPathComponent
+            }
+            Log.app.error("reveal failed — neither the path nor any ancestor could be opened")
         }
     }
 

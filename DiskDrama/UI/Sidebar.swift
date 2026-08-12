@@ -85,6 +85,18 @@ struct Sidebar: View {
 
     private var tierCards: some View {
         VStack(spacing: 6) {
+            // First, above the three. What was not measured qualifies every
+            // number below it, so it has to be read before them rather than
+            // found underneath them.
+            //
+            // Only when there is something in it: a permanently empty fourth
+            // card would be a standing invitation to click on nothing.
+            if !model.unplacedBlindSpots.isEmpty {
+                UnscannedCard(
+                    count: model.unplacedBlindSpots.count,
+                    isActive: model.pane == .unscanned,
+                    action: { model.pane = .unscanned })
+            }
             ForEach(Tier.allCases, id: \.self) { tier in
                 TierCard(
                     tier: tier,
@@ -397,5 +409,69 @@ private struct StorageMapGrid: View {
                     .padding(6)
                 }
             }
+    }
+}
+
+
+/// The fourth card. Shaped like a `TierCard` so it reads as a peer of the three,
+/// coloured unlike one so it does not read as a fourth degree of safety.
+///
+/// Where a tier card shows bytes, this shows nothing — deliberately. The whole
+/// claim of the card is that these locations were never measured, and a number
+/// there would be a guess dressed as a reading.
+private struct UnscannedCard: View {
+    let count: Int
+    let isActive: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 11) {
+                Image(systemName: "eye.slash")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(isActive ? .white : Theme.text2)
+                    .frame(width: 28, height: 28)
+                    .background(isActive ? Color.white.opacity(0.22) : Theme.hover,
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Not scanned")
+                        .font(Theme.ui(14, weight: .bold))
+                        .foregroundStyle(isActive ? .white : Theme.text)
+                    Text("\(count) location\(count == 1 ? "" : "s") · size unknown")
+                        .font(Theme.body(12))
+                        .foregroundStyle(isActive ? Color.white.opacity(0.82) : Theme.text3)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+
+                Text("—")
+                    .font(Theme.mono(14, weight: .bold))
+                    .foregroundStyle(isActive ? Color.white.opacity(0.65) : Theme.text3)
+            }
+            .padding(12)
+            .background(background)
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
+                    .stroke(isActive ? .clear : Theme.hairline, lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(isActive ? 0.20 : 0), radius: 1, y: 1)
+            .contentShape(RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .animation(Theme.transition, value: isActive)
+        .accessibilityLabel("Not scanned, \(count) location\(count == 1 ? "" : "s"), size unknown")
+        .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
+    }
+
+    @ViewBuilder
+    private var background: some View {
+        if isActive {
+            RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
+                .fill(Theme.unscannedActiveGradient)
+        } else {
+            RoundedRectangle(cornerRadius: Theme.controlRadius, style: .continuous)
+                .fill(Theme.unscannedFill)
+        }
     }
 }

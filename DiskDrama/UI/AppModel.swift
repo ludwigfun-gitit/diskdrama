@@ -19,6 +19,9 @@ final class AppModel {
 
     enum Pane: Equatable {
         case tier(Tier)
+        /// The blind spots no classification rule recognises. Not a fourth
+        /// deletion tier — the absence of a measurement, given somewhere to be.
+        case unscanned
         case changes
         case history
         case watching
@@ -43,14 +46,12 @@ final class AppModel {
         case delete(Recommendation)
         case batchClean(Tier)
         case target
-        case blindSpots
 
         var id: String {
             switch self {
             case .delete(let item):  "delete-\(item.path)"
             case .batchClean(let t): "batch-\(t.rawValue)"
             case .target:            "target"
-            case .blindSpots:        "blindSpots"
             }
         }
     }
@@ -857,6 +858,21 @@ final class AppModel {
 
     var blindSpots: [(path: String, reason: BlindSpotReason)] {
         recommendations?.blindSpots ?? []
+    }
+
+    /// Blind spots this tier's reader would want to know about: the ones whose
+    /// path alone is enough to recognise them. A `build` directory that was
+    /// excluded belongs beside the other build directories, because it changes
+    /// what that tier's total means.
+    func blindSpots(in tier: Tier) -> [(path: String, reason: BlindSpotReason)] {
+        blindSpots.filter { BlindSpotTiering.tier(for: $0) == tier }
+                  .sorted { $0.path < $1.path }
+    }
+
+    /// The rest — recognised by no rule, so belonging to no tier.
+    var unplacedBlindSpots: [(path: String, reason: BlindSpotReason)] {
+        blindSpots.filter { BlindSpotTiering.tier(for: $0) == nil }
+                  .sorted { $0.path < $1.path }
     }
 }
 
