@@ -239,6 +239,18 @@ private struct UnscannedDetail: View {
     /// permission wall got a Retry that cannot move it and an already-excluded
     /// path got an Ignore greyed out to say so — a row whose only affordance was
     /// disabled, describing a fix the user had already applied.
+    ///
+    /// The styles carry meaning, not rank, and are not free to normalise.
+    /// `QuietButtonStyle` marks the refusals — Dismiss, Skip for now, Not now,
+    /// Never…, Stop looking here — every one of them "make this go away" rather
+    /// than "do the thing". They stay reachable and stay unattractive, so nobody
+    /// suppresses a finding because its escape hatch was the boldest control in
+    /// reach. Flattening them to ghost for visual evenness reads tidier and
+    /// quietly promotes the one action here with irreversible consequences.
+    ///
+    /// A sealed location correctly has no accent button: there is no primary
+    /// action, because there is nothing to be done. Rows that *can* be resolved
+    /// get one, which is what gives the row a top to its hierarchy.
     private var actions: some View {
         HStack(spacing: 8) {
             Button("Reveal in Finder") { FileActions.revealInFinder(path: spot.path) }
@@ -259,14 +271,14 @@ private struct UnscannedDetail: View {
                         model.unexclude(path: spot.path)
                         onScan()
                     }
-                    .buttonStyle(GhostButtonStyle(height: 29, fontSize: 12.5))
+                    .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 14, fontSize: 12.5))
                 }
                 Button("Stop excluding") { model.unexclude(path: spot.path) }
                     .buttonStyle(GhostButtonStyle(height: 29, fontSize: 12.5))
             } else {
                 if spot.reason == .fullDiskAccessMissing {
                     Button("Grant access") { FullDiskAccess.openSystemSettings() }
-                        .buttonStyle(GhostButtonStyle(height: 29, fontSize: 12.5))
+                        .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 14, fontSize: 12.5))
                 }
                 if BlindSpotCopy.retryCouldHelp(spot.reason) {
                     Button("Retry", action: onScan)
@@ -277,7 +289,7 @@ private struct UnscannedDetail: View {
                 // this is the hard skip (F19) that stops it being read at all,
                 // and two different mechanisms must not share a word.
                 Button("Stop looking here") { model.exclude(path: spot.path) }
-                    .buttonStyle(GhostButtonStyle(height: 29, fontSize: 12.5))
+                    .buttonStyle(QuietButtonStyle(height: 29))
             }
 
             Spacer(minLength: 8)
