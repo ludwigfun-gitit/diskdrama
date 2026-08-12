@@ -18,7 +18,6 @@ struct Sidebar: View {
             tierCards
             divider(top: 14, bottom: 14)
             navigation
-                .animation(Theme.transition, value: model.flash)
             Spacer(minLength: 12)
             storageMap
             settingsRow
@@ -131,39 +130,12 @@ struct Sidebar: View {
                 badge: "\(model.watchedCount)",
                 badgeIsAccent: false,
                 isActive: model.pane == .watching,
-                isFlashing: model.flash?.destination == .watching,
+                flashMessage: model.flash?.destination == .watching ? model.flash?.message : nil,
                 action: { model.pane = .watching })
 
-            flashLine
         }
     }
 
-    /// The confirmation sits directly beneath the row it is about, rather than
-    /// as a toast in a corner. The action is taken on the far side of the window
-    /// and its result lands here, so putting the words anywhere else would leave
-    /// the user reading a message in one place and hunting for the effect in
-    /// another. Under the row, next to the highlight, it is one glance.
-    ///
-    /// It lands in the slack the `Spacer` below already holds, so nothing else
-    /// in the rail moves when it appears.
-    @ViewBuilder
-    private var flashLine: some View {
-        if let flash = model.flash {
-            HStack(spacing: 6) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 10.5, weight: .semibold))
-                Text(flash.message)
-                    .font(Theme.body(11.5))
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(Theme.accent)
-            .padding(.horizontal, 11)
-            .padding(.top, 6)
-            .transition(.opacity)
-            .accessibilityAddTraits(.updatesFrequently)
-        }
-    }
 
     private var changesBadge: String {
         guard let delta = model.delta else { return "first scan" }
@@ -316,12 +288,18 @@ private struct NavRow: View {
     let badge: String
     let badgeIsAccent: Bool
     let isActive: Bool
-    var isFlashing: Bool = false
+    /// Present only while the row is confirming something that just landed in it.
+    ///
+    /// It is not drawn. The highlight is the whole visible signal — a sentence
+    /// beside it restated what the colour already said, and the row is where the
+    /// user will look for detail anyway. It still reaches VoiceOver, because a
+    /// colour-only confirmation is no confirmation at all to a screen reader.
+    var flashMessage: String? = nil
     let action: (() -> Void)?
 
     var body: some View {
-        HoverRow(isActive: isActive, isFlashing: isFlashing, action: action,
-                 label: "\(title), \(badge)") {
+        HoverRow(isActive: isActive, isFlashing: flashMessage != nil, action: action,
+                 label: flashMessage.map { "\(title), \(badge). \($0)" } ?? "\(title), \(badge)") {
             HStack(spacing: 10) {
                 Text(title).font(Theme.ui(13, weight: isActive ? .semibold : .medium))
                 Spacer()
