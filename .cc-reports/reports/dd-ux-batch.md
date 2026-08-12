@@ -254,3 +254,99 @@ Notes retained from when the last three were still open:
   fixed a ring that was anchored to the wrong rect entirely. The remaining work
   is the radius mismatch this ticket describes, which likely needs
   `focusEffectDisabled` plus a `@FocusState`-driven overlay per the ticket.
+
+---
+
+# Blind-spot rework — DD.B007–DD.B010
+
+One surface, four tickets, from `.cc-reports/briefs/blind-spot-ux-rework.md`.
+
+| ticket | status |
+|---|---|
+| `DD.B007` no glance path for short lists | **fixed, verified on screen** |
+| `DD.B008` Retry/Ignore offered uniformly | **fixed**, verified for `.excludedByUser` |
+| `DD.B009` your own exclusion reads as an error | **fixed, verified on screen** |
+| `DD.B010` DD's own cloud skips look like yours | **fixed, not visually verified** |
+
+## DD.B007 — inline for short lists
+
+Three or fewer blind spots now render in place — name, then a one-line reason —
+with a **Details** button for the sheet. Above that it falls back to the summary
+callout and **Show list**, unchanged.
+
+Verified, two blind spots, nothing clicked:
+
+```
+2 locations missing from the totals. Totals are a floor, not the full picture.
+/private/tmp/dd-bs2/mine-one   You told DiskDrama not to look here.
+/private/tmp/dd-bs2/mine-two   You told DiskDrama not to look here.
+```
+
+And the fallback, on a real home scan with four:
+
+```
+4 locations missing from the totals. Totals are a floor, not the full picture.
+```
+
+## DD.B008 — actions only where they can act
+
+`Retry` now appears only where retrying could change the answer — `.unreadable`
+and `.fullDiskAccessMissing`. Removed for `.permissionDenied` (a macOS wall does
+not move because you asked twice) and `.excludedByUser` (the path is filtered out
+of the walk before it is reached, so the button was a no-op).
+
+`Ignore` is renamed **Stop looking here**. It calls `exclude(path:)`, the hard F19
+skip — never scanned again — while the app's *other* feature, `ignoredPaths`
+(F18, "Ignored" in Settings), still scans and still counts. Two mechanisms, one
+word, opposite guarantees.
+
+Verified for `.excludedByUser`: exactly two buttons on the row, widths 101 and
+111 — "Scan anyway" and "Stop excluding" — and no third. `.permissionDenied` was
+not reachable in the test data, so that branch is verified by construction only.
+
+## DD.B009 — a deliberate choice is not a failure
+
+`.excludedByUser` rows are grouped under their own **SKIPPED ON PURPOSE** header,
+and the sheet's headline adapts — with no genuine failures it opens "Nothing
+failed to read" instead of counting them as unread locations.
+
+The disabled `Ignore` is replaced by two working actions:
+
+- **Stop excluding** → `unexclude(path:)`, already written and previously unwired.
+- **Scan anyway** → unexclude, then rescan. *This is the substitute the brief
+  allowed*, not a one-shot override: the skip set is built once at scan start from
+  `Settings.exclusions`, so a true one-off would mean threading a second exclusion
+  list through the walk for a single click.
+
+Verified on screen:
+
+```
+Nothing failed to read
+Everything DiskDrama tried to read, it read. The locations below were
+skipped deliberately, so nothing here is a problem to fix.
+SKIPPED ON PURPOSE
+/private/tmp/dd-bs2/mine-one   You told DiskDrama not to look here, so it was skipped.
+```
+
+## DD.B010 — DiskDrama's own skips, attributed honestly
+
+`Settings.isDefaultExclusion` distinguishes the two File Provider roots from
+anything the user chose. Those rows get their own sentence — DiskDrama skips it
+by default, entering a cloud root can hang for minutes while macOS decides what
+to download — and **no "Scan anyway"**. "Stop excluding" remains, so the escape
+hatch exists without a one-click path into the hang.
+
+**Not visually verified.** The rows only exist on a home scan, and on that
+configuration I could not locate the callout's "Show list" button through the
+accessibility tree — the geometry match that worked in `5940ae3` did not surface
+it this time, and three presses hit other controls. The same sheet was driven
+successfully in the small-tree configuration, so the sheet works; what is
+unconfirmed is specifically how the two cloud rows look inside it. Worth a glance.
+
+## Closed from the earlier batch
+
+- **B005 expand/collapse** — not building it; drill-in via "Look inside" covers it.
+- **B003 second sentence** — was illustrative, so it is now written to hold for
+  whichever two folders the scan picks rather than naming Photos: "They hold your
+  own files, or data an app manages, where deleting can break an app or lose
+  something you can't get back."

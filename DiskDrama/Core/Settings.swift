@@ -103,6 +103,17 @@ final class Settings {
         ]
     }
 
+    /// Whether a path is one of DiskDrama's own default skips rather than
+    /// something the user chose.
+    ///
+    /// The distinction matters wherever the UI attributes the decision. Telling
+    /// someone "you told DiskDrama not to look here" about a folder DiskDrama
+    /// skipped on its own initiative is simply untrue, and it hides the reason —
+    /// which is not preference but the File Provider hang described above.
+    static func isDefaultExclusion(_ path: String) -> Bool {
+        defaultExclusions.contains(path)
+    }
+
     /// Nodes smaller than this are not persisted into a snapshot (they still
     /// count toward every total). 50 MB — below it, an item is not a disk-space
     /// problem and the delta has nothing useful to say about it.

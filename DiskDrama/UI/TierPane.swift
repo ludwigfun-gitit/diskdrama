@@ -183,28 +183,70 @@ struct TierPane: View {
         let phrases = notable.map { "\($0.name) (\(ByteFormat.compact($0.sizeBytes)))" }
         let subject = phrases.joined(separator: " and ")
         let verb = notable.count == 1 ? "is" : "are"
-        let pronoun = notable.count == 1 ? "It contains" : "They contain"
+        let pronoun = notable.count == 1 ? "It holds" : "They hold"
+        // The folders are whichever largest scanned-but-not-recommended ones the
+        // scan found, so the reason has to hold for any of them — naming Photos
+        // reads as precision right up until the pair is Movies and Downloads.
         return "\(subject) \(verb) scanned but excluded from recommendations. "
-            + "\(pronoun) data managed by apps and Photos, where deletions can break apps or lose photos."
+            + "\(pronoun) your own files, or data an app manages, where deleting can break an app or lose "
+            + "something you can't get back."
     }
 
     /// F06 is explicit that unreadable locations are recorded and shown, never
     /// guessed at. A total computed over a tree with holes in it is a floor, not
     /// a measurement, and the user is entitled to know which.
+    /// Three or fewer fit here; more would crowd the results out of the way.
+    private static let inlineBlindSpotLimit = 3
+
     @ViewBuilder
     private var blindSpotNotice: some View {
-        let spots = model.blindSpots
+        let spots = model.blindSpots.sorted { $0.path < $1.path }
         if !spots.isEmpty {
             let missingAccess = spots.filter { $0.reason == .fullDiskAccessMissing }.count
             let noun = spots.count == 1 ? "location" : "locations"
-            Callout(
-                text: missingAccess > 0
-                    ? "\(spots.count) \(noun) couldn't be read — \(missingAccess) need Full Disk Access. Totals are a floor, not the full picture."
-                    : "\(spots.count) \(noun) couldn't be read. Totals are a floor, not the full picture.",
-                symbol: "eye.slash",
-                actionLabel: "Show list",
-                action: { model.activeSheet = .blindSpots })
-            .padding(.top, 10)
+            let summary = missingAccess > 0
+                ? "\(spots.count) \(noun) missing from the totals — \(missingAccess) need Full Disk Access."
+                : "\(spots.count) \(noun) missing from the totals. Totals are a floor, not the full picture."
+
+            if spots.count <= Self.inlineBlindSpotLimit {
+                // A click to reveal two lines of text is a click that buys the
+                // user nothing. At this length the answer fits where the
+                // question is asked, and the sheet stays for when it doesn't.
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(summary)
+                        .font(Theme.body(13))
+                        .foregroundStyle(Theme.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ForEach(Array(spots.enumerated()), id: \.offset) { _, spot in
+                        HStack(alignment: .firstTextBaseline, spacing: 7) {
+                            Text(PathDisplay.friendlyName(spot.path) ?? PathDisplay.short(spot.path))
+                                .font(Theme.mono(11.5))
+                                .foregroundStyle(Theme.text)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Text(BlindSpotCopy.short(spot))
+                                .font(Theme.body(11.5))
+                                .foregroundStyle(Theme.text3)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    Button("Details") { model.activeSheet = .blindSpots }
+                        .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
+                        .padding(.top, 1)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .background(Theme.content, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(Theme.hairline, lineWidth: 1))
+                .padding(.top, 10)
+            } else {
+                Callout(text: summary,
+                        symbol: "eye.slash",
+                        actionLabel: "Show list",
+                        action: { model.activeSheet = .blindSpots })
+                .padding(.top, 10)
+            }
         }
     }
 
