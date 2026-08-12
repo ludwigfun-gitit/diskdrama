@@ -121,9 +121,20 @@ struct BlindSpotRow: View {
                 // "Ignored" list (F18) still scans and still counts the folder;
                 // this is the hard skip (F19) that stops it being read at all,
                 // and two different mechanisms must not share a word.
+                // Ghost, not Quiet. For a permission wall there is no Grant
+                // access and no Retry, so this is the only control in the row —
+                // and a chrome-less control with nothing to recess against is
+                // one users report as missing, which is exactly what happened
+                // to its twin in UnscannedPane.
                 Button("Stop looking here") { model.exclude(path: spot.path) }
-                    .buttonStyle(QuietButtonStyle(height: 26, fontSize: 12.5))
+                    .buttonStyle(GhostButtonStyle(height: 26, horizontalPadding: 11, fontSize: 12.5))
             }
+
+            // Parity with the Not scanned pane. Offering the hide there and not
+            // here would make whether a location can be dismissed depend on
+            // which screen the user happened to find it on.
+            Button("Stop listing this") { model.hideBlindSpot(path: spot.path) }
+                .buttonStyle(QuietButtonStyle(height: 26, fontSize: 12.5))
         }
     }
 }

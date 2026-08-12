@@ -149,6 +149,25 @@ struct MainWindow: View {
     // MARK: - Content
 
     private var contentPane: some View {
+        // Notices wrap every pane, not just the tiers.
+        //
+        // `deletionError` is the app's only channel for "that didn't work", and
+        // `ResultsNotices` is its only renderer — but it used to render inside
+        // the `.tier` case alone. "Put back" lives on History and sets exactly
+        // that property when a restore fails, so the one failure a user could
+        // provoke from that pane was the one guaranteed never to be shown. The
+        // reduced-mode banner is global truth too and loses nothing by being
+        // visible everywhere.
+        VStack(spacing: 0) {
+            ResultsNotices(model: model, onScan: onScan)
+            paneBody
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(ContentWash())
+    }
+
+    @ViewBuilder
+    private var paneBody: some View {
         Group {
             switch model.pane {
             case .tier(let tier):
@@ -161,10 +180,7 @@ struct MainWindow: View {
                 // anything inside it renders once per tier and remounts on every
                 // switch. Blind spots went the other way — they are now split
                 // across the tiers that recognise them, so they live inside.
-                VStack(spacing: 0) {
-                    ResultsNotices(model: model, onScan: onScan)
-                    TierPane(model: model, tier: tier, onScan: onScan)
-                }
+                TierPane(model: model, tier: tier, onScan: onScan)
             case .unscanned:      UnscannedPane(model: model, onScan: onScan)
             case .changes:        ChangesPane(model: model)
             case .history:        HistoryPane(model: model)

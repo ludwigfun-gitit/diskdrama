@@ -20,6 +20,7 @@ struct SettingsSheet: View {
     @State private var hasStoredKey = APIKeyStore.hasKey
     @State private var scanRoots = Settings.shared.scanRoots
     @State private var exclusions = Settings.shared.exclusions
+    @State private var keyError: String?
     @State private var deleteMode = Settings.shared.defaultDeletionMode
     @State private var menuBarOnly = Settings.shared.menuBarOnly
     @State private var lowGB = SettingsSheet.gbText(Settings.shared.lowThresholdBytes)
@@ -242,10 +243,19 @@ struct SettingsSheet: View {
                     .stroke(Theme.hairline2, lineWidth: 1))
 
             HStack(spacing: 9) {
+                // The field used to be cleared unconditionally, so a Keychain
+                // write that failed looked precisely like one that worked: the
+                // key vanished from the box and nothing else changed. `save`
+                // already returns whether it succeeded — it was only ever the
+                // caller discarding the answer.
                 Button("Save key") {
-                    APIKeyStore.save(apiKey)
+                    if APIKeyStore.save(apiKey) {
+                        keyError = nil
+                        apiKey = ""
+                    } else {
+                        keyError = "Couldn't save the key to the Keychain. It hasn't been stored — your text is still here, so you can try again."
+                    }
                     hasStoredKey = APIKeyStore.hasKey
-                    apiKey = ""
                 }
                 .buttonStyle(GhostButtonStyle(height: 28, fontSize: 12.5))
                 .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -253,11 +263,18 @@ struct SettingsSheet: View {
                 if hasStoredKey {
                     Button("Remove key") {
                         APIKeyStore.delete()
-                        hasStoredKey = false
+                        hasStoredKey = APIKeyStore.hasKey
+                        keyError = hasStoredKey
+                            ? "Couldn't remove the key from the Keychain. It's still stored."
+                            : nil
                     }
                     .buttonStyle(QuietButtonStyle(height: 28))
                 }
                 Spacer()
+            }
+
+            if let keyError {
+                Text(keyError).settingsCaption().foregroundStyle(Theme.danger)
             }
 
             Text(privacyCaption).settingsCaption()
