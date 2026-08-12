@@ -371,7 +371,7 @@ struct ExplanationPanel: View {
             Button("Never suggest this") { model.dismiss(item) }
             Button("Never look in this folder") { model.exclude(path: item.path) }
         } label: {
-            Text("Never…")
+            Text("Never")
         }
         .menuStyle(.button)
         .buttonStyle(QuietButtonStyle(height: 29))
@@ -404,7 +404,7 @@ struct ExplanationPanel: View {
             // that recolouring is the app's single most important safety signal.
             // Spending red one screen earlier, on a button that only opens a
             // dialog, is what would blunt it.
-            Button("Delete \(ByteFormat.compact(item.sizeBytes))…") {
+            Button("Delete \(ByteFormat.compact(item.sizeBytes))") {
                 model.presentDeleteSheet(for: item)
             }
             .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 15, fontSize: 12.5))

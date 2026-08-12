@@ -10,7 +10,30 @@ struct Sidebar: View {
 
     @Bindable var model: AppModel
 
+    /// Below this window height the rail drops "Where it all went".
+    ///
+    /// Measured, not guessed: the rail's own content runs to 654pt and the map
+    /// accounts for ~95 of that, so everything else clears 620 comfortably while
+    /// the whole rail does not. A `VStack` does not shrink its children — it
+    /// overflows, and SwiftUI centres the overflow, which clips the title bar at
+    /// the top *and* Settings at the bottom simultaneously. `ViewThatFits` won't
+    /// do it either: the `Spacer` above absorbs the proposal, so the map is never
+    /// told it doesn't fit.
+    private static let storageMapNeeds: CGFloat = 670
+
     var body: some View {
+        GeometryReader { geo in
+            content(height: geo.size.height)
+                .frame(height: geo.size.height, alignment: .top)
+        }
+        .frame(width: Theme.sidebarWidth)
+        .background(Theme.rail)
+        .overlay(alignment: .trailing) {
+            Rectangle().fill(Theme.hairline).frame(width: 1)
+        }
+    }
+
+    private func content(height: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             freeSpaceSummary
             divider(top: 0, bottom: 10)
@@ -19,17 +42,19 @@ struct Sidebar: View {
             divider(top: 14, bottom: 14)
             navigation
             Spacer(minLength: 12)
-            storageMap
+            // The map is the one thing in the rail that can go. Everything above
+            // it is navigation the window cannot function without, so when the
+            // window is short something has to yield and this is the only
+            // honest candidate — a VStack does not shrink its children, it
+            // overflows, and SwiftUI then centres the overflow and clips *both*
+            // ends. Adding the fourth tier card is what pushed the rail past the
+            // 620pt minimum and made that visible.
+            if height >= Self.storageMapNeeds { storageMap }
             settingsRow
         }
         .padding(.horizontal, 10)
         .padding(.top, 14)
         .padding(.bottom, 12)
-        .frame(width: Theme.sidebarWidth)
-        .background(Theme.rail)
-        .overlay(alignment: .trailing) {
-            Rectangle().fill(Theme.hairline).frame(width: 1)
-        }
     }
 
     // MARK: - Free space

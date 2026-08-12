@@ -63,7 +63,7 @@ struct MainWindow: View {
             Button {
                 model.activeSheet = .target
             } label: {
-                Label("Get me to…", systemImage: "target")
+                Label("Set a target", systemImage: "target")
                     .labelStyle(.titleAndIcon)
             }
             .buttonStyle(GhostButtonStyle())
@@ -85,7 +85,11 @@ struct MainWindow: View {
         // Left inset clears the traffic lights, which the system draws over this
         // bar because the window uses a full-size content view.
         .padding(.leading, 78)
-        .padding(.trailing, 14)
+        // 26, not 14: the same trailing inset the content pane uses, so Scan
+        // lines up with the pane's action button, the size column and the
+        // explanation panel's trailing control rather than sitting 11pt proud
+        // of all of them.
+        .padding(.trailing, 26)
         .frame(height: Theme.titleBarHeight)
         .background(Theme.chrome)
         .overlay(alignment: .bottom) {

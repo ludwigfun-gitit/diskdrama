@@ -73,6 +73,12 @@ struct AccentButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            // A button label is never allowed to truncate. It is a fixed,
+            // authored string — there is no "less important end" to shed, and
+            // the result of trying was "Delete 25.4 G…", one character short of
+            // the unit it needed. It also frees the ellipsis to mean only one
+            // thing on screen.
+            .fixedSize(horizontal: true, vertical: false)
             .font(Theme.ui(fontSize, weight: .semibold))
             .foregroundStyle(.white)
             .padding(.horizontal, horizontalPadding)
@@ -111,6 +117,12 @@ struct GhostButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            // A button label is never allowed to truncate. It is a fixed,
+            // authored string — there is no "less important end" to shed, and
+            // the result of trying was "Delete 25.4 G…", one character short of
+            // the unit it needed. It also frees the ellipsis to mean only one
+            // thing on screen.
+            .fixedSize(horizontal: true, vertical: false)
             .font(Theme.ui(fontSize, weight: .medium))
             .foregroundStyle(isHovering && isEnabled ? Theme.accent : Theme.text)
             .padding(.horizontal, horizontalPadding)
@@ -139,6 +151,12 @@ struct QuietButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            // A button label is never allowed to truncate. It is a fixed,
+            // authored string — there is no "less important end" to shed, and
+            // the result of trying was "Delete 25.4 G…", one character short of
+            // the unit it needed. It also frees the ellipsis to mean only one
+            // thing on screen.
+            .fixedSize(horizontal: true, vertical: false)
             .font(Theme.ui(fontSize, weight: .medium))
             .foregroundStyle(isHovering ? Theme.text : Theme.text3)
             .padding(.horizontal, 12)
