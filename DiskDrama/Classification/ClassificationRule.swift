@@ -76,6 +76,13 @@ enum PathMatcher: Sendable {
     /// `parent`. Distinguishes a Rust `target/` (next to `src/`) from a folder
     /// someone happened to call target.
     case namedUnder(name: String, parent: String)
+    /// Final component ends with this, compared case-insensitively.
+    ///
+    /// For bundle types that are what they are wherever they sit. A `.xcarchive`
+    /// is an Xcode archive whether Xcode filed it or a build script dropped it in
+    /// a project folder, and the location-anchored matchers cannot say so — they
+    /// describe where a thing lives, and this describes what it is.
+    case suffix(String)
 
     func matches(path: String, name: String) -> Bool {
         switch self {
@@ -93,6 +100,8 @@ enum PathMatcher: Sendable {
         case .namedUnder(let value, let parent):
             guard name == value else { return false }
             return path.contains("/" + parent + "/")
+        case .suffix(let value):
+            return name.lowercased().hasSuffix(value.lowercased())
         }
     }
 

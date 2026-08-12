@@ -95,6 +95,32 @@ enum KnowledgeBase {
             confidence: 0.9
         ),
 
+        // Deliberately *after* the rule above, so an archive in Xcode's own
+        // folder keeps that one — first match wins, and the location-anchored
+        // rule is the more specific statement.
+        //
+        // This one catches the archives Xcode is not managing: a build script or
+        // a manual `xcodebuild -archivePath` drops them beside the project, where
+        // the Organizer never lists them and nothing ever prompts a clear-out. In
+        // practice they are the ones that accumulate, precisely because the UI
+        // that would show them doesn't know they exist.
+        //
+        // Same tier and same consequence as the managed ones: an archive carries
+        // the debug symbols for one exact binary, so it is Review first, not
+        // Safe. Rebuilding produces a *different* binary whose symbols no longer
+        // match the build already in users' hands.
+        ClassificationRule(
+            key: "xcode.archives.stray",
+            matcher: .suffix(".xcarchive"),
+            tier: .reviewFirst,
+            title: "Xcode archive outside Xcode's folder",
+            whatThisIs: "An archived build with the debug symbols needed to read crash reports from that exact release. It sits outside ~/Library/Developer/Xcode/Archives, so Xcode's Organizer doesn't list it and won't offer to clean it up.",
+            consequence: "Deleting it means crash reports from that shipped build can no longer be symbolicated. Rebuilding does not restore it — a new build produces different symbols.",
+            rebuildCost: "Not rebuildable in any practical sense.",
+            confidence: 0.9,
+            minimumSizeBytes: 50_000_000
+        ),
+
         // ── Tier 1 — package managers and build output ──────────────────────
 
         ClassificationRule(
