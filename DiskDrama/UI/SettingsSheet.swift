@@ -40,6 +40,7 @@ struct SettingsSheet: View {
                     explanationsSection
                     scanRootsSection
                     exclusionsSection
+                    hiddenBlindSpotsSection
                     ignoredSection
                     deletionSection
                 }
@@ -351,6 +352,23 @@ struct SettingsSheet: View {
             AddFolderButton(title: "Exclude a folder") { path in
                 model.exclude(path: path)
                 exclusions = Settings.shared.exclusions
+            }
+        }
+    }
+
+    private var hiddenBlindSpotsSection: some View {
+        Section(title: "Stopped listing these",
+                blurb: "Locations DiskDrama couldn't read and you've asked it to stop listing. "
+                     + "Unlike the two lists below, this changes nothing about the scan — there "
+                     + "was nothing readable to scan. They're still missing from every total, and "
+                     + "the Not scanned pane still says how many; this only stops them being "
+                     + "named every time.") {
+            if model.hiddenBlindSpotPaths.isEmpty {
+                Text("Nothing hidden.").settingsCaption()
+            } else {
+                PathList(paths: Array(model.hiddenBlindSpotPaths).sorted(), emptyNote: "") { path in
+                    model.unhideBlindSpot(path: path)
+                }
             }
         }
     }

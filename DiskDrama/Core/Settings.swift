@@ -78,6 +78,19 @@ final class Settings {
     /// scan start; the scan does not observe changes made while it runs.
     var exclusionSet: Set<String> { Set(exclusions) }
 
+    /// Blind spots the user never wants listed again.
+    ///
+    /// Distinct from `exclusions`, which is about what the *scan* does. This is
+    /// only about what the pane *shows*. Excluding a sealed folder changes
+    /// nothing measurable — it was already unreadable — so "stop looking here"
+    /// could only move its row between two headings on the same screen, never
+    /// off it. Someone who has read "there is nothing to fix here" once should
+    /// be able to stop being told, without the app pretending the gap closed.
+    var hiddenBlindSpots: [String] {
+        get { defaults.stringArray(forKey: Key.hiddenBlindSpots.rawValue) ?? [] }
+        set { defaults.set(newValue, forKey: Key.hiddenBlindSpots.rawValue) }
+    }
+
     /// The two File Provider roots on a modern Mac.
     ///
     /// The preflight locked `~/Library/Mobile Documents` (iCloud Drive) out of the
@@ -207,6 +220,7 @@ final class Settings {
         case freeSpaceTarget     = "planner.freeSpaceTargetBytes"
         case completedOnboarding = "onboarding.completed"
         case fdaBannerDismissed  = "onboarding.fdaBannerDismissedAt"
+        case hiddenBlindSpots    = "scan.hiddenBlindSpots"
     }
 
     /// `object(forKey:)` rather than `integer(forKey:)` so an unset key is

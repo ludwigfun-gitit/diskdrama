@@ -14,6 +14,27 @@ import SwiftUI
 /// being distributed across three tiers they have no claim to — which is what
 /// made the old global callout, repeated identically under every tier, feel
 /// like a misfiled fact.
+/// A blind spot as it stands *now*, not as the scan recorded it.
+///
+/// The snapshot is history and Settings is current, and the two disagree the
+/// moment the user acts. Excluding a location the scan failed to read does not
+/// rewrite the scan, so a list rendered straight from the snapshot cannot show
+/// the user's own action landing — which is exactly what made "Stop looking
+/// here" look broken. It did precisely what it says, wrote the exclusion, and
+/// nothing on screen moved, because the row was describing a scan that had
+/// already finished.
+enum BlindSpotState: Equatable {
+    /// The scan could not read it, and nothing since has changed that.
+    case unreadable(BlindSpotReason)
+    /// Currently in `Settings.exclusions`. `wasSkipped` distinguishes "the scan
+    /// skipped it because it was already excluded" from "the scan failed on it
+    /// and the user has since told DiskDrama to stop trying".
+    case excluded(wasSkipped: Bool)
+    /// Skipped by this scan, but no longer excluded — so the next scan will read
+    /// it. Without this state, "Stop excluding" had nowhere to move the row to.
+    case pending
+}
+
 @MainActor
 enum BlindSpotTiering {
 
@@ -50,7 +71,7 @@ struct BlindSpotRow: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                Text(BlindSpotCopy.long(spot))
+                Text(BlindSpotCopy.long(spot, state: model.state(of: spot)))
                     .font(Theme.body(12))
                     .foregroundStyle(Theme.text3)
                     .fixedSize(horizontal: false, vertical: true)
@@ -131,6 +152,20 @@ enum BlindSpotCopy {
         case .permissionDenied:      return "Permission denied — owned by the system or another user."
         case .unreadable:            return "Couldn't be opened."
         case .excludedByUser:        return "You told DiskDrama not to look here."
+        }
+    }
+
+    /// The fuller sentence, for a full row, in terms of where things stand now.
+    static func long(_ spot: (path: String, reason: BlindSpotReason), state: BlindSpotState) -> String {
+        switch state {
+        case .pending:
+            return "No longer excluded. DiskDrama didn't read it during this scan, so it isn't in any total "
+                 + "yet — the next scan will include it."
+        case .excluded(wasSkipped: false):
+            return "DiskDrama has stopped looking here. This scan couldn't read it anyway; the next one "
+                 + "won't try, and its size stays unknown by design."
+        case .excluded(wasSkipped: true), .unreadable:
+            return long(spot)
         }
     }
 

@@ -28,16 +28,31 @@ struct UnscannedPane: View {
 
     private var spots: [(path: String, reason: BlindSpotReason)] { model.unplacedBlindSpots }
 
-    /// Genuine read failures — something went wrong.
+    /// Grouped by where things stand *now*, not by what the scan recorded. This
+    /// is what makes the buttons visible: excluding a failed location moves its
+    /// row from the first group to the second, and un-excluding moves it to the
+    /// third, so every action has somewhere to land.
+    private func group(_ match: (BlindSpotState) -> Bool) -> [(path: String, reason: BlindSpotReason)] {
+        spots.filter { match(model.state(of: $0)) }
+    }
+
+    /// Genuine read failures — something went wrong and still is wrong.
     private var failures: [(path: String, reason: BlindSpotReason)] {
-        spots.filter { $0.reason != .excludedByUser }
+        group { if case .unreadable = $0 { true } else { false } }
     }
 
     /// Locations skipped on purpose. Not failures, and listing them beside
     /// failures at the same visual weight is what made a decision the user
     /// already made read as an outstanding problem.
     private var deliberate: [(path: String, reason: BlindSpotReason)] {
-        spots.filter { $0.reason == .excludedByUser }
+        group { if case .excluded = $0 { true } else { false } }
+    }
+
+    /// No longer excluded, but this scan didn't read them. Their absence from
+    /// the totals is now temporary, and saying so is the whole point of the
+    /// group — it is where "Stop excluding" puts what it just acted on.
+    private var pending: [(path: String, reason: BlindSpotReason)] {
+        group { $0 == .pending }
     }
 
     private var selected: (path: String, reason: BlindSpotReason)? {
@@ -48,8 +63,10 @@ struct UnscannedPane: View {
         VStack(spacing: 0) {
             PaneHeader(title: "Not scanned", blurb: blurb) { EmptyView() }
 
-            if spots.isEmpty {
+            if spots.isEmpty && model.hiddenBlindSpotCount == 0 {
                 emptyState
+            } else if spots.isEmpty {
+                VStack(spacing: 0) { Spacer(minLength: 0); hiddenNote; Spacer(minLength: 0) }
             } else {
                 list
                 if let spot = selected {
@@ -79,6 +96,11 @@ struct UnscannedPane: View {
                     sectionHeader("Skipped on purpose")
                     rows(deliberate)
                 }
+                if !pending.isEmpty {
+                    sectionHeader("Will be read on the next scan")
+                    rows(pending)
+                }
+                hiddenNote
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
@@ -111,6 +133,28 @@ struct UnscannedPane: View {
                 spot: spot,
                 isSelected: selected?.path == spot.path,
                 action: { selectedPath = spot.path })
+        }
+    }
+
+    /// Hiding a row must not quietly shrink the truth. The count stays on
+    /// screen, so the totals are never described as more complete than they are —
+    /// the user has only opted out of being told which ones, again, every time.
+    @ViewBuilder
+    private var hiddenNote: some View {
+        if model.hiddenBlindSpotCount > 0 {
+            let n = model.hiddenBlindSpotCount
+            HStack(spacing: 6) {
+                Text("\(n) more \(n == 1 ? "location is" : "locations are") hidden and still missing from the totals.")
+                    .font(Theme.body(12))
+                    .foregroundStyle(Theme.text3)
+                Button("Manage in Settings") { model.isShowingSettings = true }
+                    .buttonStyle(.plain)
+                    .font(Theme.body(12))
+                    .foregroundStyle(Theme.accent)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, Theme.rowPaddingH)
+            .padding(.top, 16)
         }
     }
 
@@ -205,7 +249,7 @@ private struct UnscannedDetail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
             header
-            Text(BlindSpotCopy.long(spot))
+            Text(BlindSpotCopy.long(spot, state: model.state(of: spot)))
                 .font(Theme.body(13))
                 .lineSpacing(3)
                 .foregroundStyle(Theme.text2)
@@ -256,7 +300,14 @@ private struct UnscannedDetail: View {
             Button("Reveal in Finder") { FileActions.revealInFinder(path: spot.path) }
                 .buttonStyle(GhostButtonStyle(height: 29, fontSize: 12.5))
 
-            if spot.reason == .excludedByUser {
+            if case .pending = model.state(of: spot) {
+                // It will be read next time regardless; offering the scan now is
+                // the only thing that brings that forward.
+                Button("Scan now", action: onScan)
+                    .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 14, fontSize: 12.5))
+                Button("Stop looking here") { model.exclude(path: spot.path) }
+                    .buttonStyle(GhostButtonStyle(height: 29, fontSize: 12.5))
+            } else if case .excluded = model.state(of: spot) {
                 // "Scan anyway" is unexclude-then-rescan rather than a one-shot
                 // override: the skip set is built once at scan start from
                 // Settings.exclusions, so a genuine one-off would mean threading
@@ -266,7 +317,7 @@ private struct UnscannedDetail: View {
                 // it protects against is real and measured in minutes, so opting
                 // in belongs in Settings as a considered choice, not as the
                 // nearest button in a list of things that went wrong.
-                if !BlindSpotCopy.isDiskDramasOwnSkip(spot) {
+                if !Settings.isDefaultExclusion(spot.path) {
                     Button("Scan anyway") {
                         model.unexclude(path: spot.path)
                         onScan()
@@ -289,8 +340,21 @@ private struct UnscannedDetail: View {
                 // this is the hard skip (F19) that stops it being read at all,
                 // and two different mechanisms must not share a word.
                 Button("Stop looking here") { model.exclude(path: spot.path) }
-                    .buttonStyle(QuietButtonStyle(height: 29))
+                    .buttonStyle(GhostButtonStyle(height: 29, fontSize: 12.5))
             }
+
+            // The genuine hide, and the only refusal in this bar — so this is
+            // where QuietButtonStyle belongs.
+            //
+            // Named against "Stop looking here", not against Ignore. *Looking*
+            // is what the scan does; *listing* is what this pane does, and those
+            // are the two different things the user can switch off. The obvious
+            // label was "Never mention this", which would have put a third
+            // "Never…" beside F18's "Never suggest this" and F19's "Never look
+            // in this folder" — three suppressions, one word, differing in a
+            // noun. DD.B008 already treated exactly that as a bug.
+            Button("Stop listing this") { model.hideBlindSpot(path: spot.path) }
+                .buttonStyle(QuietButtonStyle(height: 29))
 
             Spacer(minLength: 8)
 

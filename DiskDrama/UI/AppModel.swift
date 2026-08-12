@@ -856,8 +856,32 @@ final class AppModel {
         Set((delta?.regrown ?? []).map(\.path))
     }
 
+    /// Mirrored from `Settings` for the same reason `excludedPaths` is: views
+    /// cannot observe `UserDefaults`, so a row hidden by a button would sit there
+    /// until the next scan and make the button look broken.
+    private(set) var hiddenBlindSpotPaths: Set<String> = Set(Settings.shared.hiddenBlindSpots)
+
     var blindSpots: [(path: String, reason: BlindSpotReason)] {
-        recommendations?.blindSpots ?? []
+        (recommendations?.blindSpots ?? []).filter { !hiddenBlindSpotPaths.contains($0.path) }
+    }
+
+    /// Counted, not listed. The gap is still real and still stated — the pane
+    /// says how many are hidden — it just stops naming them every time.
+    var hiddenBlindSpotCount: Int {
+        (recommendations?.blindSpots ?? []).count { hiddenBlindSpotPaths.contains($0.path) }
+    }
+
+    func hideBlindSpot(path: String) {
+        var current = Settings.shared.hiddenBlindSpots
+        guard !current.contains(path) else { return }
+        current.append(path)
+        Settings.shared.hiddenBlindSpots = current
+        hiddenBlindSpotPaths = Set(current)
+    }
+
+    func unhideBlindSpot(path: String) {
+        Settings.shared.hiddenBlindSpots = Settings.shared.hiddenBlindSpots.filter { $0 != path }
+        hiddenBlindSpotPaths = Set(Settings.shared.hiddenBlindSpots)
     }
 
     /// Blind spots this tier's reader would want to know about: the ones whose
@@ -867,6 +891,16 @@ final class AppModel {
     func blindSpots(in tier: Tier) -> [(path: String, reason: BlindSpotReason)] {
         blindSpots.filter { BlindSpotTiering.tier(for: $0) == tier }
                   .sorted { $0.path < $1.path }
+    }
+
+    /// Reconciles what the scan recorded against what Settings says today, so
+    /// that acting on a row moves it instead of appearing to do nothing.
+    func state(of spot: (path: String, reason: BlindSpotReason)) -> BlindSpotState {
+        if excludedPaths.contains(spot.path) {
+            return .excluded(wasSkipped: spot.reason == .excludedByUser)
+        }
+        if spot.reason == .excludedByUser { return .pending }
+        return .unreadable(spot.reason)
     }
 
     /// The rest — recognised by no rule, so belonging to no tier.
