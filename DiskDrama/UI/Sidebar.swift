@@ -66,7 +66,7 @@ struct Sidebar: View {
     @ViewBuilder
     private var reclaimableLine: some View {
         if model.totalReclaimableBytes > 0 {
-            Text("Another \(ByteFormat.compact(model.totalReclaimableBytes)) is reclaimable.")
+            Text("Another \(ByteFormat.compact(model.totalReclaimableBytes)) can be reclaimed.")
                 .font(Theme.body(12.5))
                 .foregroundStyle(Theme.accent)
                 .fixedSize(horizontal: false, vertical: true)
