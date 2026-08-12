@@ -1,6 +1,8 @@
 # DiskDrama — cloud downloads: spec
 
-**Status:** spec only, nothing built. Four decisions at the end need Ludwig.
+**Status:** spec agreed, nothing built. Decisions settled (see Decisions).
+Step 1 of the verification plan is **done** — Hazard 2 was tested and ruled
+out; see below. Implementation is unblocked.
 
 ## Why
 
@@ -74,22 +76,37 @@ change to the scan engine.
 ~24,000 calls. Path list comes from Spotlight; sizes come from `lstat`. At no
 point does anything enumerate a directory.
 
-### 2. Spotlight *metadata* reads appear to materialize content
+### 2. ~~Spotlight metadata reads materialize content~~ — tested, false
 
-Strongly suspected, and it cost 17.5 GB during investigation. I ran `mdls` on
-the 25 largest cloud files to check whether `kMDItemPhysicalSize` was
-trustworthy. About 30 minutes later those files were fully downloaded — `ctime`
-half an hour old against `mtime` 110 days old, which is materialization, not
-modification. Free space fell from 40.6 GB to 17.4 GB.
+I suspected this and wrote it up as the blocking gate, because 17.5 GB
+materialized during investigation and `mdls` was the temporal correlate. It was
+the wrong culprit.
 
-`mdfind` (a query against the index) never did this. `lstat` never did this.
-Only `mdls` (per-item attribute fetch) correlates.
+Tested three ways against evicted files with `st_blocks == 0`, each with an
+untouched control file alongside:
 
-**This must be deliberately verified before any code ships**, because a
-disk-space tool that silently downloads gigabytes is worse than no tool. Test:
-pick one evicted file, record `ctime`, run `mdls` on it alone, wait, re-check.
-If confirmed, `mdls` is banned on cloud paths and the ban goes in
-architectural-rules alongside §5.1.
+| form | subject | observed | result |
+|---|---|---|---|
+| `mdls -name kMDItemPhysicalSize -raw <path>` | 1 file, 6.4 MB | 5 min | no change |
+| `mdls <path>` (all 35 attributes) | 1 file, 6.4 MB | 2 min | no change |
+| `mdls -name … -raw <12 paths>` — the exact original invocation | 12 files, 88 MB | 2.5 min | no change |
+
+`st_blocks` stayed 0 and `ctime` never moved, on subjects and controls alike.
+**Spotlight metadata reads are safe on cloud paths**, and no ban is needed.
+
+The likely real culprit is the `os.walk` in Hazard 1. It enumerated for nearly
+four minutes before being killed, which is ample time for the provider to queue
+materialization; 17.5 GB then takes a while to arrive, and `ctime` stamps on
+completion, not on request — which is exactly the ~30-minute offset observed.
+That is **one** hazard, not two, and it is the one already prohibited.
+
+Not proven retrospectively, and not worth proving: confirming it means running
+another enumeration and paying for another download, to re-establish a rule the
+spec already enforces for an independent reason (the hang).
+
+The lesson worth keeping is about the evidence, not the API: a temporal
+correlation across a 30-minute delay identified the wrong call, and the only
+thing that separated them was a controlled test with a control file.
 
 ### 3. `kMDItemPhysicalSize` is fiction for cloud files
 
@@ -134,7 +151,18 @@ message is "nothing to do here".
 - Photos library, Mail, Messages attachments — different mechanisms, not File
   Provider.
 
-## Decisions needed
+## Decisions — settled
+
+Ludwig's call, 2026-08-12: follow the recommendations below.
+
+1. **Pin state via `fileproviderctl`, with a hard fallback.** (b) below.
+2. **iCloud Drive only in v1.** `~/Library/CloudStorage` deferred until
+   eviction is verified per provider.
+3. **Evictions recorded in History, but not counted toward all-time freed** —
+   they would overstate it, for the reason given below.
+4. **Refresh on demand**, not on every scan.
+
+Original framing kept for the reasoning behind each:
 
 1. **Ship v1 without pin state?** `fileproviderctl` is an undocumented CLI and
    shelling out to it from a notarized app is a real dependency risk — it can
@@ -163,13 +191,14 @@ message is "nothing to do here".
 
 ## Verification plan
 
-- Hazard 2 confirmed or ruled out **before** any implementation.
+- ~~Hazard 2 confirmed or ruled out before any implementation.~~ **Done** —
+  ruled out, three forms tested with controls. See Hazard 2.
 - Eviction round-trip on a disposable file per provider: evict, confirm
   `st_blocks == 0`, re-download, confirm bytes return.
 - Card total reconciles with `du` on a folder small enough to `du` safely.
 - The pane renders and refreshes with both roots empty, with one root empty, and
   with Spotlight disabled — the index is a floor, and the copy must say so
   rather than presenting a floor as a measurement.
-- No cloud path is ever passed to `mdls`, `fts`, `readdir`, or a `URL` property
+- No cloud path is ever passed to `fts`, `readdir`, or a `URL` property
   accessor. Worth a test that asserts this, given how expensive getting it wrong
-  proved to be.
+  proved to be. `mdls` is off the list — it was tested and is safe.
