@@ -535,6 +535,40 @@ final class AppModel {
         onReclaimableChanged?()
     }
 
+    // MARK: - Transient confirmation
+
+    /// A short-lived message for an action whose result lands somewhere the user
+    /// is not looking.
+    ///
+    /// "Watch this" flipped its own label to "Watching" and stopped there. That
+    /// says the state changed; it doesn't say *where the thing went*. The item
+    /// joins a list in the sidebar that the button never mentions, so the one
+    /// piece of information a first-time user needs is the piece not given.
+    /// `message` says what happened and `destination` lights the row now holding
+    /// it, so both halves of the answer arrive at once.
+    struct Flash: Equatable, Identifiable {
+        let id = UUID()
+        let message: String
+        let destination: Pane?
+    }
+
+    private(set) var flash: Flash?
+
+    /// Held so a second action supersedes the first rather than having the older
+    /// timer clear the newer message early.
+    @ObservationIgnored private var flashTask: Task<Void, Never>?
+
+    func showFlash(_ message: String, destination: Pane? = nil) {
+        let next = Flash(message: message, destination: destination)
+        flash = next
+        flashTask?.cancel()
+        flashTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2.4))
+            guard !Task.isCancelled, let self, self.flash?.id == next.id else { return }
+            self.flash = nil
+        }
+    }
+
     // MARK: - Watches (F21)
 
     private(set) var watches: [WatchedPath] = []
@@ -549,6 +583,7 @@ final class AppModel {
                                        sizeAtLastClean: lastCleanedSize))
         }
         loadPersistedState()
+        showFlash("Added to Watching", destination: .watching)
     }
 
     func unwatch(_ watch: WatchedPath) {
@@ -558,6 +593,9 @@ final class AppModel {
             where row.path == path { context.delete(row) }
         }
         loadPersistedState()
+        // Symmetric on purpose. Removal is the easier of the two to do by
+        // accident, so it is the one more worth confirming out loud.
+        showFlash("Removed from Watching", destination: .watching)
     }
 
     var isWatching: (Recommendation) -> Bool {

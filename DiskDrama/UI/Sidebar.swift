@@ -18,6 +18,7 @@ struct Sidebar: View {
             tierCards
             divider(top: 14, bottom: 14)
             navigation
+                .animation(Theme.transition, value: model.flash)
             Spacer(minLength: 12)
             storageMap
             settingsRow
@@ -130,7 +131,37 @@ struct Sidebar: View {
                 badge: "\(model.watchedCount)",
                 badgeIsAccent: false,
                 isActive: model.pane == .watching,
+                isFlashing: model.flash?.destination == .watching,
                 action: { model.pane = .watching })
+
+            flashLine
+        }
+    }
+
+    /// The confirmation sits directly beneath the row it is about, rather than
+    /// as a toast in a corner. The action is taken on the far side of the window
+    /// and its result lands here, so putting the words anywhere else would leave
+    /// the user reading a message in one place and hunting for the effect in
+    /// another. Under the row, next to the highlight, it is one glance.
+    ///
+    /// It lands in the slack the `Spacer` below already holds, so nothing else
+    /// in the rail moves when it appears.
+    @ViewBuilder
+    private var flashLine: some View {
+        if let flash = model.flash {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 10.5, weight: .semibold))
+                Text(flash.message)
+                    .font(Theme.body(11.5))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(Theme.accent)
+            .padding(.horizontal, 11)
+            .padding(.top, 6)
+            .transition(.opacity)
+            .accessibilityAddTraits(.updatesFrequently)
         }
     }
 
@@ -285,10 +316,12 @@ private struct NavRow: View {
     let badge: String
     let badgeIsAccent: Bool
     let isActive: Bool
+    var isFlashing: Bool = false
     let action: (() -> Void)?
 
     var body: some View {
-        HoverRow(isActive: isActive, action: action, label: "\(title), \(badge)") {
+        HoverRow(isActive: isActive, isFlashing: isFlashing, action: action,
+                 label: "\(title), \(badge)") {
             HStack(spacing: 10) {
                 Text(title).font(Theme.ui(13, weight: isActive ? .semibold : .medium))
                 Spacer()
@@ -311,6 +344,11 @@ private struct NavRow: View {
 /// don't have.
 private struct HoverRow<Content: View>: View {
     let isActive: Bool
+    /// Briefly accent-filled to point at a row that just received something.
+    /// Stronger than the active fill on purpose — it has to read as movement in
+    /// peripheral vision, since the user is looking at the button they pressed
+    /// on the other side of the window, not at the sidebar.
+    var isFlashing: Bool = false
     var action: (() -> Void)?
     /// Stated rather than inferred, since the chrome's children are hidden.
     var label: String = ""
@@ -342,15 +380,19 @@ private struct HoverRow<Content: View>: View {
 
     private var chrome: some View {
         content
-            .foregroundStyle(isActive ? Theme.accent : (isHovering ? Theme.text : Theme.text2))
+            .foregroundStyle(isActive || isFlashing ? Theme.accent
+                                                    : (isHovering ? Theme.text : Theme.text2))
             .padding(.horizontal, 11)
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(isActive ? Theme.accent.opacity(0.10) : (isHovering ? Theme.hover : .clear))
+                    .fill(isFlashing ? Theme.accent.opacity(0.24)
+                          : isActive ? Theme.accent.opacity(0.10)
+                          : (isHovering ? Theme.hover : .clear))
             )
             .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .animation(Theme.transition, value: isActive)
+            .animation(Theme.transition, value: isFlashing)
     }
 }
 
