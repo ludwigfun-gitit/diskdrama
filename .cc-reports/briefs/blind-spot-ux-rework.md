@@ -112,3 +112,36 @@ geometry-matching approach from `5940ae3` rather than skipping verification.
 The scan engine, exclusion persistence model, and everything else DD.B004
 already shipped and this doesn't touch (Grant Access, the callout's
 optional title/action, focus rings).
+
+## DD.B011 — the blind-spot callout is global data, shown three times as if it weren't
+
+Caught on screen: switch between Safe to delete / App-managed / Review first
+and the same "N locations missing from the totals" callout appears
+identically under all three. Confirmed in code, not just visually —
+`blindSpotNotice` is a computed property inside `TierPane.body`, and
+`MainWindow.contentPane` instantiates a new `TierPane` per selected tier
+(`case .tier(let tier): TierPane(...)`). It reads `model.blindSpots`, which
+has no tier field and can't have one — a location that failed to read isn't
+"safe" or "app-managed" or "review-first", it's unknown, orthogonal to all
+three. So there's no tier it's specifically relevant to; showing it "under
+the tier where relevant" isn't really an option here, the honest fix is the
+general-level one.
+
+Move `blindSpotNotice` out of `TierPane` and render it once, above the
+tier's item list, in `MainWindow.contentPane` — inside the `.tier(let
+tier)` case so it still only shows on the three recommendation tiers, but
+outside `TierPane` itself so switching tiers doesn't remount it. Same
+question for `reducedModeBanner` right next to it in `TierPane.body` — it's
+the same pattern (`model.hasFullDiskAccess` / `model.lastScanMissedProtectedLocations`,
+both global), duplicated the same way. Fix both in the same pass rather
+than doing this twice.
+
+Leave Changes/History/Watching panes out of scope unless you think it's
+obviously right to extend there too — say so in the report either way,
+don't decide it silently.
+
+### Verification
+Scan with at least one blind spot present, switch across all three tiers,
+confirm the callout renders once and doesn't flash/remount on tier switch.
+Same for the reduced-mode banner if Full Disk Access is off in the test
+environment.

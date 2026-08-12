@@ -152,7 +152,15 @@ struct MainWindow: View {
     private var contentPane: some View {
         Group {
             switch model.pane {
-            case .tier(let tier): TierPane(model: model, tier: tier, onScan: onScan)
+            case .tier(let tier):
+                // Notices first, and outside `TierPane`: they describe the scan
+                // rather than the tier, and `TierPane` is rebuilt per tier, so
+                // anything inside it is duplicated across all three and remounts
+                // on every switch.
+                VStack(spacing: 0) {
+                    ResultsNotices(model: model, onScan: onScan)
+                    TierPane(model: model, tier: tier, onScan: onScan)
+                }
             case .changes:        ChangesPane(model: model)
             case .history:        HistoryPane(model: model)
             case .watching:       WatchingPane(model: model)

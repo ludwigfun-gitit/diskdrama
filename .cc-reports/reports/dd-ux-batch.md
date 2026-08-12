@@ -350,3 +350,63 @@ unconfirmed is specifically how the two cloud rows look inside it. Worth a glanc
   whichever two folders the scan picks rather than naming Photos: "They hold your
   own files, or data an app manages, where deleting can break an app or lose
   something you can't get back."
+
+---
+
+## DD.B011 — one scan, one notice — FIXED
+
+`blindSpotNotice` lived inside `TierPane`, and `MainWindow` builds a fresh
+`TierPane` per selected tier. So the same sentence rendered under Safe to delete,
+App-managed and Review first, and remounted on every switch. `reducedModeBanner`
+and `deletionNotice` sat beside it with the same problem — all three read global
+state (`blindSpots`, `hasFullDiskAccess`, `deletionError`), none of which has a
+tier or could be given one. A location that failed to read is not "safe"; it is
+unknown, which is orthogonal to all three tiers.
+
+All three moved into a `ResultsNotices` view, rendered once in
+`MainWindow.contentPane` inside the `.tier` case — still only on the three
+recommendation tiers, but above `TierPane` rather than inside it, so a tier
+switch changes only `TierPane`'s identity.
+
+`deletionNotice` was not named in the ticket. It is the same bug in the same
+three lines of `TierPane.body`, so it moved with the other two rather than being
+left as the one duplicated notice.
+
+### Verified on screen
+
+Real home scan, four blind spots. Switching tiers:
+
+```
+Safe to delete    blind-spot callout instances: 1
+App-managed       blind-spot callout instances: 1
+Review first      blind-spot callout instances: 1
+```
+
+Never three, never zero.
+
+The "doesn't flash/remount" half is not observable through the accessibility
+tree, so it was measured instead: a temporary `@State` counter incremented from
+`onAppear`, which fires per mount. After four tier switches it read **1** — the
+view mounted once and survived every switch. Probe removed afterwards.
+
+### Changes / History / Watching — deliberately left out
+
+Asked in the ticket, answering rather than deciding silently: **not extended**,
+and I do not think it is obviously right to.
+
+These notices qualify the *reclaimable totals* the tier panes show. History shows
+past deletions and Watching shows watches — neither displays a scan total, so a
+"totals are a floor" caveat there is qualifying something that is not on screen.
+Changes is the arguable one: it shows a delta, and a delta between two scans that
+both have holes is genuinely suspect — but the honest caveat there is about the
+*comparison* ("both of these scans were incomplete"), which is a different
+sentence, not this one moved. Extending would mean writing that copy, not
+reusing this.
+
+### Test hygiene
+
+Verified with the real home directory and one temporary exclusion — the folder
+that blocks a worker indefinitely — rather than with synthetic folders written
+into the exclusion list. Prefs restored afterwards; store checked for
+`/private/tmp` residue: **0 rows**. The snapshot left behind is a real scan of the
+real disk.

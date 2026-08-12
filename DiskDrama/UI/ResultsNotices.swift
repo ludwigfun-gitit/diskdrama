@@ -1,0 +1,151 @@
+import SwiftUI
+
+/// The notices that belong to the scan, not to a tier.
+///
+/// Every one of these reads global state — Full Disk Access, the last deletion,
+/// the blind spots — and every one of them used to live inside `TierPane`.
+/// `MainWindow` builds a fresh `TierPane` per selected tier, so the same
+/// sentence rendered under Safe to delete, App-managed and Review first, three
+/// times, remounting on every switch. A location that failed to read is not
+/// "safe" or "app-managed"; it has no tier and cannot be given one, so the honest
+/// place for it is above the tiers rather than repeated inside each.
+struct ResultsNotices: View {
+
+    @Bindable var model: AppModel
+    let onScan: () -> Void
+
+    /// Three or fewer fit inline; more would crowd the results out of the way.
+    private static let inlineBlindSpotLimit = 3
+
+    var body: some View {
+        VStack(spacing: 0) {
+            reducedModeBanner
+            deletionNotice
+            blindSpotNotice
+        }
+    }
+
+    /// F05's failure case, made permanent: without Full Disk Access the app
+    /// runs in reduced mode, and the banner offers the walkthrough again rather
+    /// than leaving the user to wonder why the numbers look thin. Dismissable,
+    /// because a banner you cannot silence is an app that nags.
+    @ViewBuilder
+    private var reducedModeBanner: some View {
+        if !model.hasFullDiskAccess && !model.hasDismissedAccessBanner {
+            HStack(spacing: 11) {
+                Image(systemName: "eye.slash")
+                    .font(.system(size: 14)).foregroundStyle(Theme.text3)
+                Text("Running with blind spots — a lot of reclaimable space lives in places I can't "
+                     + "read without Full Disk Access.")
+                    .font(Theme.body(12.5)).foregroundStyle(Theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button("Fix this") { model.isShowingOnboarding = true }
+                    .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
+                Button("Dismiss") { model.dismissAccessBanner() }
+                    .buttonStyle(QuietButtonStyle(height: 24, fontSize: 12))
+            }
+            .padding(.horizontal, 26).padding(.vertical, 10)
+            .background(Theme.panel)
+            .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
+        } else if model.lastScanMissedProtectedLocations {
+            // Access has since been granted, but these totals were produced
+            // without it. Simply hiding the banner here would read as "all
+            // good" at the exact moment the numbers are still short.
+            //
+            // No Dismiss: one press of the button resolves it, and it clears
+            // itself on the next scan however that scan is started.
+            HStack(spacing: 11) {
+                Image(systemName: "eye")
+                    .font(.system(size: 14)).foregroundStyle(Theme.accent)
+                Text("Full Disk Access is on now — but these totals came from a scan that ran "
+                     + "without it, so they're still missing those places.")
+                    .font(Theme.body(12.5)).foregroundStyle(Theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button("Scan again", action: onScan)
+                    .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
+            }
+            .padding(.horizontal, 26).padding(.vertical, 10)
+            .background(Theme.panel)
+            .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
+        }
+    }
+
+    /// Something went wrong, or resolved itself, outside a confirmation dialog.
+    ///
+    /// The only place this used to appear was inside the delete sheets, which
+    /// works right up until the answer is "there is no sheet" — an item that has
+    /// already been removed by something else is now taken off the list without
+    /// opening one, and that has to be sayable somewhere.
+    @ViewBuilder
+    private var deletionNotice: some View {
+        if let message = model.deletionError, model.activeSheet == nil {
+            HStack(spacing: 11) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 13)).foregroundStyle(Theme.text3)
+                Text(message)
+                    .font(Theme.body(12.5)).foregroundStyle(Theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button("Dismiss") { model.deletionError = nil }
+                    .buttonStyle(QuietButtonStyle(height: 24, fontSize: 12))
+            }
+            .padding(.horizontal, 26).padding(.vertical, 10)
+            .background(Theme.panel)
+            .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
+        }
+    }
+
+    @ViewBuilder
+    private var blindSpotNotice: some View {
+        let spots = model.blindSpots.sorted { $0.path < $1.path }
+        if !spots.isEmpty {
+            let missingAccess = spots.filter { $0.reason == .fullDiskAccessMissing }.count
+            let noun = spots.count == 1 ? "location" : "locations"
+            let summary = missingAccess > 0
+                ? "\(spots.count) \(noun) missing from the totals — \(missingAccess) need Full Disk Access."
+                : "\(spots.count) \(noun) missing from the totals. Totals are a floor, not the full picture."
+
+            if spots.count <= Self.inlineBlindSpotLimit {
+                // A click to reveal two lines of text is a click that buys the
+                // user nothing. At this length the answer fits where the
+                // question is asked, and the sheet stays for when it doesn't.
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(summary)
+                        .font(Theme.body(13))
+                        .foregroundStyle(Theme.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ForEach(Array(spots.enumerated()), id: \.offset) { _, spot in
+                        HStack(alignment: .firstTextBaseline, spacing: 7) {
+                            Text(PathDisplay.friendlyName(spot.path) ?? PathDisplay.short(spot.path))
+                                .font(Theme.mono(11.5))
+                                .foregroundStyle(Theme.text)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Text(BlindSpotCopy.short(spot))
+                                .font(Theme.body(11.5))
+                                .foregroundStyle(Theme.text3)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    Button("Details") { model.activeSheet = .blindSpots }
+                        .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
+                        .padding(.top, 1)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .background(Theme.content, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(Theme.hairline, lineWidth: 1))
+                .padding(.top, 10)
+            } else {
+                Callout(text: summary,
+                        symbol: "eye.slash",
+                        actionLabel: "Show list",
+                        action: { model.activeSheet = .blindSpots })
+                .padding(.top, 10)
+            }
+        }
+    }
+}
