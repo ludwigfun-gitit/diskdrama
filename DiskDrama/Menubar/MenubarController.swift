@@ -22,6 +22,10 @@ final class MenubarController {
     /// mapping positions to meanings — correct until the day someone inserts a
     /// separator, at which point it silently writes the free-space figure into
     /// the wrong row. References cannot drift.
+    /// The volume this menu was last drawn for, so the bar can be re-sized when
+    /// only the reclaimable line changes and no new reading has arrived.
+    private var lastRenderedInfo: DiskInfo?
+
     private var headlineItem: NSMenuItem?
     private var capacityItem: NSMenuItem?
     private var checkedItem: NSMenuItem?
@@ -188,6 +192,18 @@ final class MenubarController {
         }
     }
 
+    /// The app's display face, in the menu.
+    ///
+    /// Space Grotesk is what every other title in DiskDrama uses, so the
+    /// dropdown reads as the same product rather than as a system menu that
+    /// happens to belong to it. Falls back to the menu font if the family is
+    /// missing — a menu that renders in the wrong face is a blemish, one that
+    /// renders in nothing is a bug.
+    private static let displayFont: NSFont = {
+        let size = NSFont.menuFont(ofSize: 0).pointSize
+        return NSFont(name: "Space Grotesk", size: size) ?? NSFont.menuFont(ofSize: 0)
+    }()
+
     /// A drawn capacity bar.
     ///
     /// This was eighteen `▓`/`░` characters — "a monospaced block gauge reads
@@ -199,8 +215,8 @@ final class MenubarController {
     /// this costs one small bitmap, with no view lifecycle to manage. The old
     /// comment's premise — that a menu item cannot host a view cheaply — is
     /// sidestepped rather than argued with.
-    private func capacityBar(_ fraction: Double, availableBytes: Int64) -> NSImage {
-        let size = NSSize(width: 168, height: 6)
+    private func capacityBar(_ fraction: Double, availableBytes: Int64, width: CGFloat) -> NSImage {
+        let size = NSSize(width: max(168, width), height: 6)
         let image = NSImage(size: size, flipped: false) { rect in
             let radius = rect.height / 2
             NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
@@ -282,10 +298,9 @@ final class MenubarController {
             button.toolTip = "Free: \(ByteFormat.compact(free)) of \(ByteFormat.compact(info.totalBytes))"
         }
 
+        lastRenderedInfo = info
         headlineItem?.attributedTitle = headline(for: info)
         // The bar is now an image, so the row carries no text at all.
-        capacityItem?.attributedTitle = NSAttributedString(string: "")
-        capacityItem?.image = capacityBar(info.usedFraction, availableBytes: info.availableBytes)
 
         let formatter = DateFormatter()
         formatter.timeStyle = .short
@@ -316,6 +331,30 @@ final class MenubarController {
             string: summary.detail,
             attributes: [.font: NSFont.systemFont(ofSize: 11),
                          .foregroundColor: NSColor.secondaryLabelColor])
+
+        sizeCapacityBar()
+    }
+
+    /// Draws the bar as wide as the widest row, so it spans the menu instead of
+    /// stopping halfway across it.
+    ///
+    /// A menu is only as wide as its widest item, and that item is text whose
+    /// width depends on the numbers of the moment — "checked 12:12" and a
+    /// biggest-consumer sentence that changes with every scan. A fixed 168pt bar
+    /// was therefore right at no width in particular and looked half-finished at
+    /// most of them. Measuring the rows it sits among is the only way to be
+    /// correct at all of them.
+    ///
+    /// Called last, once every other title for this render is in place.
+    private func sizeCapacityBar() {
+        guard let info = lastRenderedInfo else { return }
+        let widest = [headlineItem, checkedItem, reclaimableItem, reclaimableDetailItem]
+            .compactMap { $0?.attributedTitle?.size().width }
+            .max() ?? 168
+        capacityItem?.attributedTitle = NSAttributedString(string: "")
+        capacityItem?.image = capacityBar(info.usedFraction,
+                                          availableBytes: info.availableBytes,
+                                          width: widest)
     }
 
     /// One sentence, one treatment.
@@ -334,7 +373,7 @@ final class MenubarController {
     private func headline(for info: DiskInfo) -> NSAttributedString {
         NSAttributedString(
             string: "\(ByteFormat.compact(info.availableBytes)) free of \(ByteFormat.compact(info.totalBytes))",
-            attributes: [.font: NSFont.menuFont(ofSize: 0),
+            attributes: [.font: Self.displayFont,
                          .foregroundColor: NSColor.labelColor])
     }
 
@@ -350,6 +389,7 @@ final class MenubarController {
         }
         headlineItem?.attributedTitle = NSAttributedString(
             string: "—", attributes: [.foregroundColor: NSColor.labelColor])
+        lastRenderedInfo = nil
         capacityItem?.attributedTitle = NSAttributedString(string: "")
         capacityItem?.image = nil
         checkedItem?.attributedTitle = NSAttributedString(string: "Couldn't read the volume")
