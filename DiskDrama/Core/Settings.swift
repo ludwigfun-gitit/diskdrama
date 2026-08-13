@@ -78,6 +78,18 @@ final class Settings {
     /// scan start; the scan does not observe changes made while it runs.
     var exclusionSet: Set<String> { Set(exclusions) }
 
+    /// Paths the operating system refused to let DiskDrama delete.
+    ///
+    /// Learned rather than declared. ~/Library/Caches/CloudKit needed a hand-
+    /// written rule because nothing knew macOS owned it; this is so the next such
+    /// folder does not. A permission refusal is a durable fact about a path — the
+    /// system will refuse again — so remembering it is the difference between
+    /// discovering the wall once and walking into it after every scan.
+    var undeletablePaths: [String] {
+        get { defaults.stringArray(forKey: Key.undeletablePaths.rawValue) ?? [] }
+        set { defaults.set(newValue, forKey: Key.undeletablePaths.rawValue) }
+    }
+
     /// Blind spots the user never wants listed again.
     ///
     /// Distinct from `exclusions`, which is about what the *scan* does. This is
@@ -221,6 +233,7 @@ final class Settings {
         case completedOnboarding = "onboarding.completed"
         case fdaBannerDismissed  = "onboarding.fdaBannerDismissedAt"
         case hiddenBlindSpots    = "scan.hiddenBlindSpots"
+        case undeletablePaths    = "deletion.refusedByOS"
     }
 
     /// `object(forKey:)` rather than `integer(forKey:)` so an unset key is

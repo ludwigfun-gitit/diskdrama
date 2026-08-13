@@ -42,6 +42,7 @@ struct SettingsSheet: View {
                     scanRootsSection
                     exclusionsSection
                     hiddenBlindSpotsSection
+                    undeletableSection
                     ignoredSection
                     deletionSection
                 }
@@ -385,6 +386,23 @@ struct SettingsSheet: View {
             } else {
                 PathList(paths: Array(model.hiddenBlindSpotPaths).sorted(), emptyNote: "") { path in
                     model.unhideBlindSpot(path: path)
+                }
+            }
+        }
+    }
+
+    private var undeletableSection: some View {
+        Section(title: "macOS wouldn't let these go",
+                blurb: "Folders DiskDrama tried to delete and the system refused. They're moved out "
+                     + "of Safe to delete and shown without a delete button, so the same dead control "
+                     + "isn't offered after every scan. Remove one from this list to have DiskDrama "
+                     + "try again — worth doing after a macOS update, which is the sort of thing that "
+                     + "changes the answer.") {
+            if model.undeletablePaths.isEmpty {
+                Text("Nothing refused.").settingsCaption()
+            } else {
+                PathList(paths: Array(model.undeletablePaths).sorted(), emptyNote: "") { path in
+                    model.forgetUndeletable(path: path)
                 }
             }
         }

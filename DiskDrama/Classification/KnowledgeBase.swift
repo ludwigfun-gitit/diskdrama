@@ -349,7 +349,7 @@ enum KnowledgeBase {
             tier: .appManaged,
             title: "iCloud sync cache",
             whatThisIs: "Working storage for iCloud's sync daemon. macOS owns it and keeps it open, so no application can remove it — DiskDrama included.",
-            consequence: "Nothing to do here, and nothing to worry about: macOS reclaims this automatically when the disk gets tight. Signing out of iCloud or restarting clears it sooner.",
+            consequence: "Restart your Mac to clear it — that releases the daemon's hold, and the cache is rebuilt only as far as it is needed. Left alone it is still fine: macOS reclaims this on its own when the disk gets tight.",
             confidence: 0.95
         ),
 

@@ -238,6 +238,9 @@ final class AppModel {
             // A failed item is still logged, so the history shows the attempt
             // rather than silently omitting it.
             recordFailure(item, mode: mode, detail: message, batchID: batchID)
+            // The whole point: a permission refusal is remembered, so the same
+            // dead button is not offered again after every future scan.
+            if Self.isPermissionError(error) { noteUndeletable(path: item.path) }
             return false
         }
     }
@@ -401,8 +404,86 @@ final class AppModel {
     // MARK: - Data
 
     /// This session's scan wins; otherwise whatever was on disk at launch.
+    ///
+    /// Anything macOS has refused to delete is re-tiered on the way out. One
+    /// place, so it applies to a fresh scan and a restored snapshot alike, and so
+    /// no view has to remember to ask.
     var recommendations: RecommendationSet? {
-        scanEngine.recommendations ?? restored?.recommendations
+        guard let set = scanEngine.recommendations ?? restored?.recommendations else { return nil }
+        return undeletablePaths.isEmpty ? set : Self.retiering(set, refused: undeletablePaths)
+    }
+
+    /// Paths the OS refused, mirrored from `Settings` so views observe changes.
+    private(set) var undeletablePaths: Set<String> = Set(Settings.shared.undeletablePaths)
+
+    /// Moves a refused path to Tier 2 and says why.
+    ///
+    /// Tier 2 because that tier means "someone else's storage, cleared some other
+    /// way" and carries no delete button — which is exactly the situation a
+    /// permission refusal describes. Leaving it in Tier 1 meant the same red
+    /// button reappearing after every scan, promising something the system had
+    /// already refused once.
+    private static func retiering(_ set: RecommendationSet, refused: Set<String>) -> RecommendationSet {
+        RecommendationSet(
+            recommendations: set.recommendations.map { item in
+                guard refused.contains(item.path) else { return item }
+                let c = item.classification
+                return Recommendation(
+                    path: item.path,
+                    name: item.name,
+                    classification: Classification(
+                        key: c.key,
+                        tier: .appManaged,
+                        title: c.title,
+                        whatThisIs: c.whatThisIs,
+                        consequence: "DiskDrama tried to remove this and macOS refused — it is owned or held open by the system, "
+                                   + "so it isn't offered for deletion any more. A restart releases most such holds; otherwise "
+                                   + "macOS reclaims this kind of storage on its own when space runs short.",
+                        rebuildCost: nil,
+                        owningApp: nil,
+                        confidence: c.confidence),
+                    sizeBytes: item.sizeBytes,
+                    logicalBytes: item.logicalBytes,
+                    fileCount: item.fileCount,
+                    newestModifiedAt: item.newestModifiedAt)
+            },
+            blindSpots: set.blindSpots,
+            largestNonRecommendable: set.largestNonRecommendable,
+            totalScannedBytes: set.totalScannedBytes)
+    }
+
+    /// A refusal by the OS, as opposed to one of DiskDrama's own policy guards.
+    ///
+    /// Only the former is a durable fact about the path. `Refusal.isScanRoot` and
+    /// friends are this app's decisions and can change with a setting; EPERM will
+    /// not.
+    static func isPermissionError(_ error: Error) -> Bool {
+        if error is DeletionService.Refusal { return false }
+        let ns = error as NSError
+        if ns.domain == NSCocoaErrorDomain,
+           ns.code == NSFileWriteNoPermissionError || ns.code == NSFileReadNoPermissionError { return true }
+        if ns.domain == NSPOSIXErrorDomain,
+           ns.code == Int(EPERM) || ns.code == Int(EACCES) { return true }
+        if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? NSError {
+            return isPermissionError(underlying)
+        }
+        return false
+    }
+
+    func noteUndeletable(path: String) {
+        guard !undeletablePaths.contains(path) else { return }
+        var current = Settings.shared.undeletablePaths
+        current.append(path)
+        Settings.shared.undeletablePaths = current
+        undeletablePaths = Set(current)
+        Log.app.notice("macOS refused deletion; re-tiered and remembered")
+        onReclaimableChanged?()
+    }
+
+    func forgetUndeletable(path: String) {
+        Settings.shared.undeletablePaths = Settings.shared.undeletablePaths.filter { $0 != path }
+        undeletablePaths = Set(Settings.shared.undeletablePaths)
+        onReclaimableChanged?()
     }
 
     var delta: Delta? {
