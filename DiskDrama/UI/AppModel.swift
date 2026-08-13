@@ -22,6 +22,9 @@ final class AppModel {
         /// The blind spots no classification rule recognises. Not a fourth
         /// deletion tier — the absence of a measurement, given somewhere to be.
         case unscanned
+        /// What the cloud roots actually cost this Mac. Not a tier — the scan
+        /// never goes near these roots, and nothing here is ever deleted.
+        case cloud
         case changes
         case history
         case watching
@@ -533,6 +536,66 @@ final class AppModel {
         Settings.shared.exclusions = Settings.shared.exclusions.filter { $0 != path }
         excludedPaths = Settings.shared.exclusionSet
         onReclaimableChanged?()
+    }
+
+    // MARK: - Cloud downloads
+
+    private(set) var cloudInventory: CloudInventory?
+    private(set) var isReadingCloud = false
+    /// The result of the last eviction, stated exactly — including the parts
+    /// that did not work.
+    var cloudNotice: String?
+
+    /// On demand, never as part of a scan. The scan must not acquire a
+    /// dependency on an undocumented CLI and a File Provider's mood.
+    func refreshCloudInventory() {
+        guard !isReadingCloud else { return }
+        isReadingCloud = true
+        // GCD, not `Task.detached` (§3.1). This blocks on a helper process.
+        DispatchQueue.global(qos: .utility).async {
+            let inventory = CloudInventoryReader.read()
+            Task { @MainActor in
+                self.cloudInventory = inventory
+                self.isReadingCloud = false
+            }
+        }
+    }
+
+    func evictCloud(folders: [String]) {
+        guard let inventory = cloudInventory, !isReadingCloud else { return }
+        isReadingCloud = true
+        cloudNotice = nil
+        DispatchQueue.global(qos: .utility).async {
+            let outcome = CloudEvictor.evict(foldersUnder: folders, in: inventory)
+            let refreshed = CloudInventoryReader.read()
+            Task { @MainActor in
+                self.cloudInventory = refreshed
+                self.isReadingCloud = false
+                self.cloudNotice = Self.describe(outcome)
+                self.disk.refresh()
+            }
+        }
+    }
+
+    /// Says what happened, including the failures, because the interesting
+    /// outcomes here are the partial ones.
+    private static func describe(_ outcome: CloudEvictor.Outcome) -> String {
+        var parts: [String] = []
+        if outcome.freedBytes > 0 {
+            parts.append("Freed \(ByteFormat.compact(outcome.freedBytes)) from \(outcome.evicted.count) file\(outcome.evicted.count == 1 ? "" : "s").")
+        } else if outcome.evicted.isEmpty {
+            parts.append("Nothing was removed.")
+        }
+        if !outcome.skippedInTransfer.isEmpty {
+            parts.append("\(outcome.skippedInTransfer.count) skipped — iCloud is still transferring them, and removing a download it has queued only makes it fetch them again.")
+        }
+        if !outcome.didNotHold.isEmpty {
+            parts.append("\(outcome.didNotHold.count) came straight back, so those bytes aren't counted.")
+        }
+        if !outcome.failed.isEmpty {
+            parts.append("\(outcome.failed.count) couldn't be removed.")
+        }
+        return parts.joined(separator: " ")
     }
 
     // MARK: - Transient confirmation

@@ -19,7 +19,7 @@ struct Sidebar: View {
     /// the top *and* Settings at the bottom simultaneously. `ViewThatFits` won't
     /// do it either: the `Spacer` above absorbs the proposal, so the map is never
     /// told it doesn't fit.
-    private static let storageMapNeeds: CGFloat = 670
+    private static let storageMapNeeds: CGFloat = 706
 
     var body: some View {
         GeometryReader { geo in
@@ -151,6 +151,12 @@ struct Sidebar: View {
                 isActive: model.pane == .history,
                 action: { model.pane = .history })
             NavRow(
+                title: "Cloud",
+                badge: cloudBadge,
+                badgeIsAccent: false,
+                isActive: model.pane == .cloud,
+                action: { model.pane = .cloud })
+            NavRow(
                 title: "Watching",
                 badge: "\(model.watchedCount)",
                 badgeIsAccent: false,
@@ -161,6 +167,17 @@ struct Sidebar: View {
         }
     }
 
+
+    /// Deliberately not a byte count until something has been read. "0 B" would
+    /// be a measurement, and no measurement has been taken — the cloud roots are
+    /// excluded from every scan by design.
+    private var cloudBadge: String {
+        if model.isReadingCloud { return "reading" }
+        guard let inventory = model.cloudInventory else { return "not read" }
+        return inventory.downloadedBytes > 0
+            ? ByteFormat.compact(inventory.downloadedBytes)
+            : "nothing local"
+    }
 
     private var changesBadge: String {
         guard let delta = model.delta else { return "first scan" }

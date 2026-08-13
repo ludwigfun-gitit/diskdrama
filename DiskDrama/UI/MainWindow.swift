@@ -186,6 +186,7 @@ struct MainWindow: View {
                 // across the tiers that recognise them, so they live inside.
                 TierPane(model: model, tier: tier, onScan: onScan)
             case .unscanned:      UnscannedPane(model: model, onScan: onScan)
+            case .cloud:          CloudPane(model: model)
             case .changes:        ChangesPane(model: model)
             case .history:        HistoryPane(model: model)
             case .watching:       WatchingPane(model: model)
