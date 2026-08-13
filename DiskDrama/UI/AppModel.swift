@@ -148,6 +148,22 @@ final class AppModel {
     /// one action that helps instead.
     private(set) var deletionNeedsRescan = false
 
+    /// Increments on every refusal, including one that repeats a message
+    /// already on screen.
+    ///
+    /// A refusal whose only trace is a sentence is indistinguishable from a
+    /// sentence that was always there — which is precisely how a working refusal
+    /// gets reported as a dead button. Views key the callout on this, so the same
+    /// text re-inserts and animates each time rather than sitting inert. The
+    /// press is always answered, even when the answer has not changed.
+    private(set) var refusalCount = 0
+
+    private func refuse(_ message: String, needsRescan: Bool = false) {
+        deletionError = message
+        if needsRescan { deletionNeedsRescan = true }
+        refusalCount += 1
+    }
+
     func presentDeleteSheet(for item: Recommendation) {
         // Something else may have removed it since the scan. Resolving that here
         // rather than inside the confirmation is the difference between "this is
@@ -156,7 +172,7 @@ final class AppModel {
         guard Self.stillExists(item.path) else {
             deletedPaths.insert(item.path)
             forgetDeleted(item.path)
-            deletionError = "“\(item.name)” isn't there any more — something else removed it since the last scan. I've taken it off the list."
+            refuse("“\(item.name)” isn't there any more — something else removed it since the last scan. I've taken it off the list.")
             onReclaimableChanged?()
             return
         }
@@ -215,8 +231,10 @@ final class AppModel {
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             Log.app.error("deletion refused or failed: \(message, privacy: .public)")
-            deletionError = message
-            if case .changedSinceScan = error as? DeletionService.Refusal { deletionNeedsRescan = true }
+            refuse(message, needsRescan: {
+                if case .changedSinceScan = error as? DeletionService.Refusal { return true }
+                return false
+            }())
             // A failed item is still logged, so the history shows the attempt
             // rather than silently omitting it.
             recordFailure(item, mode: mode, detail: message, batchID: batchID)

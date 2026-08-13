@@ -90,6 +90,11 @@ struct ResultsNotices: View {
             .padding(.horizontal, 26).padding(.vertical, 10)
             .background(Theme.panel)
             .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
+            // Same reasoning as the sheet: a second refusal carrying the same
+            // sentence still has to look like a second refusal.
+            .id(model.refusalCount)
+            .transition(.opacity)
+            .animation(Theme.transition, value: model.refusalCount)
         }
     }
 }

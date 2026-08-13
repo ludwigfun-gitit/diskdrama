@@ -66,6 +66,11 @@ struct DeleteConfirmSheet: View {
 
             if let error = model.deletionError {
                 Callout(text: error, symbol: "exclamationmark.triangle")
+                    // Keyed on the count, not the text: pressing a refused
+                    // button twice must look like two refusals, and the message
+                    // is identical both times.
+                    .id(model.refusalCount)
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
             }
 
             HStack(spacing: 9) {
@@ -108,6 +113,7 @@ struct DeleteConfirmSheet: View {
         }
         .padding(24)
         .frame(width: 500)
+        .animation(Theme.transition, value: model.refusalCount)
         // Destructive primary, not the first focusable control — which was the
         // Trash checkbox, so return toggled a setting instead of confirming.
         .defaultFocus($focus, .confirm)
