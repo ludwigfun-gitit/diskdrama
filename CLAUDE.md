@@ -3,7 +3,7 @@
 Read ~/.claude/CLAUDE.md for global orientation.
 
 - MC:L project: `proj_2FQ0N4nl`, code `DD` (already existed — it did not need creating)
-- Backlog: GET https://hombre.tailfe78ee.ts.net/mc/api/lifecycles/entries?project_id=proj_2FQ0N4nl
+- Backlog: GET http://192.168.254.77:5173/api/lifecycles/entries?project_id=proj_2FQ0N4nl
 - Reports: write to `.cc-reports/reports/` in this directory
 - Briefs: read from `.cc-reports/briefs/` in this directory
 - Architectural rules apply: yes
@@ -29,11 +29,32 @@ Key risk to read before writing the scan engine: iCloud/File Provider XPC hangs 
 
 v0's `build.sh` / `package.sh` (raw `swiftc`) are retained only as historical reference — the Xcode project is authoritative.
 
-**MC:L note:** `hombre.tailfe78ee.ts.net` does not resolve through the shell's system resolver on Caballero even with Tailscale up. Reach the API by pinning the Tailnet IP:
+**MC:L note (updated 2026-08-12):** the Tailnet is no longer in use. Hombre is on
+the LAN at `192.168.254.77` and MC:L is reached directly on port 5173. The `/mc`
+prefix was the Tailnet reverse proxy and is **gone** — paths start at `/api`:
 
 ```bash
-curl -s --resolve "hombre.tailfe78ee.ts.net:443:100.96.118.115" "https://hombre.tailfe78ee.ts.net/mc/api/lifecycles/projects"
+curl -s "http://192.168.254.77:5173/api/lifecycles/projects"
 ```
+
+## Testing on Hombre
+
+Hombre is a second Mac (`ludwigfun@192.168.254.77`). DiskDrama can't ship through
+TestFlight at all — Full Disk Access is incompatible with the App Sandbox — so a
+test build goes over directly:
+
+```bash
+~/Scripts/dev-deploy-remote.sh --build ludwigfun@192.168.254.77 DiskDrama
+```
+
+Notarization is not involved. `com.apple.quarantine` is set by whatever downloads
+a file; `scp` sets nothing, so a Developer ID build copied this way launches with
+Gatekeeper uninvolved. `make-dmg.sh` is the distribution path, not this one.
+
+Grant Full Disk Access on Hombre **once**, after the first deploy. It survives
+every later deploy because the build is signed with a constant Developer ID
+rather than ad-hoc, so the signature hash — and therefore the TCC grant — is
+stable.
 
 ## First-session TODOs (Phase 9)
 
