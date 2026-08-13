@@ -10,6 +10,7 @@ struct DeleteConfirmSheet: View {
 
     @Bindable var model: AppModel
     let item: Recommendation
+    let onScan: () -> Void
 
     @State private var isWorking = false
 
@@ -73,6 +74,18 @@ struct DeleteConfirmSheet: View {
                     .buttonStyle(GhostButtonStyle(height: 32, horizontalPadding: 16, fontSize: 13.5))
                     .disabled(isWorking)
 
+                if model.deletionNeedsRescan {
+                    // The delete cannot succeed until the figures are current,
+                    // so this is the only button that can change anything. F14's
+                    // refusal was already right; what was missing was somewhere
+                    // for the user to go after it.
+                    Button("Rescan") {
+                        model.activeSheet = nil
+                        onScan()
+                    }
+                    .buttonStyle(AccentButtonStyle(height: 32, horizontalPadding: 18, fontSize: 13.5))
+                    .focused($focus, equals: .confirm)
+                } else {
                 Button(action: confirm) {
                     if isWorking {
                         HStack(spacing: 7) {
@@ -90,6 +103,7 @@ struct DeleteConfirmSheet: View {
                                                isDestructive: !model.moveToTrash))
                 .focused($focus, equals: .confirm)
                 .disabled(isWorking || refusal != nil)
+                }
             }
         }
         .padding(24)

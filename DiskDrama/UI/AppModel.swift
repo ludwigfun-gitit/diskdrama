@@ -137,6 +137,17 @@ final class AppModel {
 
     var deletionError: String?
 
+    /// Set when a deletion was refused because the folder no longer matches what
+    /// the scan recorded.
+    ///
+    /// The refusal is correct — deleting against a stale figure is how a tool
+    /// removes 65 GB while telling you it removed 25 — but on its own it made the
+    /// confirm button look broken. It stayed red, kept its original label, kept
+    /// claiming a size it could no longer honour, and could be pressed forever to
+    /// the same effect. Knowing *why* it failed is what lets the dialog offer the
+    /// one action that helps instead.
+    private(set) var deletionNeedsRescan = false
+
     func presentDeleteSheet(for item: Recommendation) {
         // Something else may have removed it since the scan. Resolving that here
         // rather than inside the confirmation is the difference between "this is
@@ -151,12 +162,14 @@ final class AppModel {
         }
         moveToTrash = Self.defaultsToTrash(for: [item])
         deletionError = nil
+        deletionNeedsRescan = false
         activeSheet = .delete(item)
     }
 
     func presentBatchSheet(for tier: Tier) {
         moveToTrash = Self.defaultsToTrash(for: items(in: tier))
         deletionError = nil
+        deletionNeedsRescan = false
         activeSheet = .batchClean(tier)
     }
 
@@ -203,6 +216,7 @@ final class AppModel {
             let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             Log.app.error("deletion refused or failed: \(message, privacy: .public)")
             deletionError = message
+            if case .changedSinceScan = error as? DeletionService.Refusal { deletionNeedsRescan = true }
             // A failed item is still logged, so the history shows the attempt
             // rather than silently omitting it.
             recordFailure(item, mode: mode, detail: message, batchID: batchID)

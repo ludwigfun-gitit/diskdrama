@@ -30,7 +30,7 @@ struct MainWindow: View {
         }
         .sheet(item: $model.activeSheet) { sheet in
             switch sheet {
-            case .delete(let item):  DeleteConfirmSheet(model: model, item: item)
+            case .delete(let item):  DeleteConfirmSheet(model: model, item: item, onScan: onScan)
             case .batchClean(let t): BatchCleanSheet(model: model, tier: t)
             case .target:            TargetSheet(model: model)
             }
