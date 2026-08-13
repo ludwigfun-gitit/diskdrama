@@ -329,6 +329,30 @@ enum KnowledgeBase {
             confidence: 0.99
         ),
 
+        // Before generic.caches, which would otherwise call this an ordinary
+        // application cache and offer a Delete button that cannot work.
+        //
+        // macOS refuses removal of this one even with Full Disk Access — cloudd
+        // holds it open continuously (16 handles, observed) and the system
+        // treats it as its own. Offering deletion produced exactly the failure
+        // this app is supposed to prevent: a red button, a confirmation dialog,
+        // and only then "you don't have permission to access it", after the user
+        // had already decided to delete 64 GB.
+        //
+        // Tier 2 rather than Tier 3: this is not the user's data and there is
+        // nothing to review. It is someone else's storage, which is precisely
+        // what Tier 2 means — and Tier 2 carries no delete button. No owningApp,
+        // because there is no app to open; the consequence text does the work.
+        ClassificationRule(
+            key: "apple.cloudkitCache",
+            matcher: .under("~/Library/Caches/CloudKit"),
+            tier: .appManaged,
+            title: "iCloud sync cache",
+            whatThisIs: "Working storage for iCloud's sync daemon. macOS owns it and keeps it open, so no application can remove it — DiskDrama included.",
+            consequence: "Nothing to do here, and nothing to worry about: macOS reclaims this automatically when the disk gets tight. Signing out of iCloud or restarting clears it sooner.",
+            confidence: 0.95
+        ),
+
         ClassificationRule(
             key: "generic.caches",
             // One row per app, not one per directory at every depth. `.under`
