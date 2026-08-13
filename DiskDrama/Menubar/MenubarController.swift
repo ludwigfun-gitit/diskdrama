@@ -199,7 +199,7 @@ final class MenubarController {
     /// this costs one small bitmap, with no view lifecycle to manage. The old
     /// comment's premise — that a menu item cannot host a view cheaply — is
     /// sidestepped rather than argued with.
-    private func capacityBar(_ fraction: Double) -> NSImage {
+    private func capacityBar(_ fraction: Double, availableBytes: Int64) -> NSImage {
         let size = NSSize(width: 168, height: 6)
         let image = NSImage(size: size, flipped: false) { rect in
             let radius = rect.height / 2
@@ -212,10 +212,19 @@ final class MenubarController {
             guard clamped > 0 else { return true }
             var filled = rect
             filled.size.width = max(rect.height, rect.width * clamped)
-            // Red only at the point the disk is genuinely in trouble, matching
-            // the menu-bar icon's own thresholds rather than inventing a scale.
-            let colour: NSColor = clamped >= 0.95 ? .systemRed
-                                : clamped >= 0.90 ? .systemOrange
+            // The same two numbers the icon and the alert use — the user's own
+            // thresholds from Settings, in bytes of *free* space.
+            //
+            // This was `clamped >= 0.95 ? .red : clamped >= 0.90 ? .orange`,
+            // described in its own comment as "matching the menu-bar icon's own
+            // thresholds". It matched nothing: those are fractions of used
+            // space, hard-coded, while the icon reads configurable byte counts
+            // of free space. On a 494 GB disk 0.90 is 49 GB free, so a bar could
+            // sit grey while the icon beside it was already orange — two parts
+            // of one menu disagreeing about whether the disk is in trouble.
+            let settings = Settings.shared
+            let colour: NSColor = availableBytes < settings.criticalThresholdBytes ? .systemRed
+                                : availableBytes < settings.lowThresholdBytes      ? .systemOrange
                                 : .secondaryLabelColor
             colour.setFill()
             NSBezierPath(roundedRect: filled, xRadius: radius, yRadius: radius).fill()
@@ -276,7 +285,7 @@ final class MenubarController {
         headlineItem?.attributedTitle = headline(for: info)
         // The bar is now an image, so the row carries no text at all.
         capacityItem?.attributedTitle = NSAttributedString(string: "")
-        capacityItem?.image = capacityBar(info.usedFraction)
+        capacityItem?.image = capacityBar(info.usedFraction, availableBytes: info.availableBytes)
 
         let formatter = DateFormatter()
         formatter.timeStyle = .short
