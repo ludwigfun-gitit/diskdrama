@@ -23,6 +23,10 @@ struct OnboardingSheet: View {
 
     @State private var step = 0
     @State private var hasAccess = FullDiskAccess.isGranted()
+    /// Set once the user has been sent to System Settings, so the sheet can tell
+    /// "hasn't started yet" apart from "granted it and nothing happened".
+    @State private var didOpenSettings = false
+    @State private var startAtLogin = LoginItem.isEnabled
     /// Polls while the sheet is open so the grant is noticed the moment it
     /// happens — "I'll notice the moment you grant it" has to be true.
     @State private var pollTimer: Timer?
@@ -93,6 +97,7 @@ struct OnboardingSheet: View {
             .frame(maxWidth: 520, alignment: .leading)
 
             accessStatus.padding(.top, 10)
+            stubbornAccessHelp
         }
     }
 
@@ -111,6 +116,8 @@ struct OnboardingSheet: View {
                 .foregroundStyle(Theme.text2)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 520, alignment: .leading)
+
+            loginItemOffer.padding(.top, 12)
         }
     }
 
@@ -140,6 +147,7 @@ struct OnboardingSheet: View {
             Spacer(minLength: 8)
             if !hasAccess {
                 Button {
+                    didOpenSettings = true
                     FullDiskAccess.openSystemSettings()
                 } label: {
                     Label("Open System Settings", systemImage: "arrow.up.forward.square")
@@ -152,6 +160,66 @@ struct OnboardingSheet: View {
                     in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous)
             .stroke(Theme.accent.opacity(0.38), lineWidth: 1))
+    }
+
+    /// macOS offers "Quit & Reopen" when Full Disk Access is granted to a running
+    /// app, and that dialog does not always succeed — a modal sheet can swallow
+    /// the termination. When it doesn't, the user is left with a permission they
+    /// granted, an app that cannot use it, and nothing on screen admitting
+    /// either. So the app offers its own relaunch, which it can guarantee.
+    @ViewBuilder
+    private var stubbornAccessHelp: some View {
+        if didOpenSettings && !hasAccess {
+            HStack(spacing: 11) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 13)).foregroundStyle(Theme.text3)
+                Text("Granted it and still nothing? macOS often needs the app restarted before a new permission applies. "
+                     + "If you told macOS to \"Quit & Reopen\" and it didn't, this will.")
+                    .font(Theme.body(12.5)).foregroundStyle(Theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button("Relaunch DiskDrama") { Relauncher.relaunch() }
+                    .buttonStyle(GhostButtonStyle(height: 28, horizontalPadding: 12, fontSize: 12.5))
+            }
+            .padding(.horizontal, 18).padding(.vertical, 13)
+            .background(Theme.panel, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .stroke(Theme.hairline, lineWidth: 1))
+        }
+    }
+
+    /// Asked, not assumed. A monitor that only runs when you remember to open it
+    /// is not a monitor — the low-space alert matters precisely when nobody is
+    /// thinking about launching a cleanup tool — but registering a login item
+    /// without saying so changes what someone's Mac does at startup behind their
+    /// back.
+    private var loginItemOffer: some View {
+        HStack(spacing: 11) {
+            SelectionTick(isOn: startAtLogin)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Start DiskDrama when I log in")
+                    .font(Theme.ui(13.5, weight: .semibold)).foregroundStyle(Theme.text)
+                Text(LoginItem.needsApproval
+                     ? "macOS wants you to confirm this in Login Items before it takes effect."
+                     : "It sits in the menu bar and watches free space. It can't warn you about a full disk if it isn't running.")
+                    .font(Theme.body(12.5)).foregroundStyle(Theme.text3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            if LoginItem.needsApproval {
+                Button("Open Login Items") { LoginItem.openSystemSettings() }
+                    .buttonStyle(GhostButtonStyle(height: 28, horizontalPadding: 12, fontSize: 12.5))
+            }
+        }
+        .padding(.horizontal, 18).padding(.vertical, 14)
+        .background(Theme.panel, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous)
+            .stroke(Theme.hairline, lineWidth: 1))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            startAtLogin.toggle()
+            if !LoginItem.setEnabled(startAtLogin) { startAtLogin = LoginItem.isEnabled }
+        }
     }
 
     private var controls: some View {

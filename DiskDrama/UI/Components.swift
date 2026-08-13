@@ -29,12 +29,25 @@ import SwiftUI
 /// this ticket was about making it fit rather than making it go away.
 struct FocusRing: ViewModifier {
     var cornerRadius: CGFloat
-    @FocusState private var isFocused: Bool
+
+    /// The focus state of the enclosing control, read from the environment.
+    ///
+    /// This was `@FocusState private var isFocused` plus `.focused($isFocused)`,
+    /// which is why the ring stayed square through two attempts at fixing it.
+    /// The modifier runs inside a `ButtonStyle`, so it decorates the button's
+    /// *label* — and a label is not focusable. `.focused()` there bound a fresh,
+    /// unrelated focus value that nothing ever set, so the rounded overlay never
+    /// drew; and `.focusEffectDisabled()` there applied to the label rather than
+    /// to the Button, so AppKit's own square ring was never suppressed. Both
+    /// halves failed silently, and what showed on screen was the system ring the
+    /// code believed it had turned off.
+    ///
+    /// `\.isFocused` reports the focus of the nearest focusable ancestor, which
+    /// is the control itself.
+    @Environment(\.isFocused) private var isFocused
 
     func body(content: Content) -> some View {
         content
-            .focused($isFocused)
-            .focusEffectDisabled()
             .overlay {
                 if isFocused {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)

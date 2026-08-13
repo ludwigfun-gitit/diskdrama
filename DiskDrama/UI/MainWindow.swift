@@ -21,6 +21,13 @@ struct MainWindow: View {
             }
         }
         .background(Theme.content)
+        // AppKit's own focus ring is a fixed-radius rectangle drawn at the
+        // control's bounds, so on a 10pt-rounded button it reads as a square
+        // outline sitting on a rounded card. Suppressed for the whole window —
+        // including sheets, which inherit the environment — so the rounded ring
+        // in `FocusRing` is the only one drawn. Text fields opt back in below,
+        // where the system ring is the correct one.
+        .focusEffectDisabled()
         .frame(minWidth: 940, minHeight: 620)
         .sheet(isPresented: $model.isShowingSettings) {
             SettingsSheet(model: model)

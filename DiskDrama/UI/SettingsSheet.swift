@@ -21,6 +21,7 @@ struct SettingsSheet: View {
     @State private var scanRoots = Settings.shared.scanRoots
     @State private var exclusions = Settings.shared.exclusions
     @State private var keyError: String?
+    @State private var startAtLogin = LoginItem.isEnabled
     @State private var deleteMode = Settings.shared.defaultDeletionMode
     @State private var menuBarOnly = Settings.shared.menuBarOnly
     @State private var lowGB = SettingsSheet.gbText(Settings.shared.lowThresholdBytes)
@@ -40,6 +41,7 @@ struct SettingsSheet: View {
                     presentationSection
                     explanationsSection
                     scanRootsSection
+                    startupSection
                     exclusionsSection
                     hiddenBlindSpotsSection
                     undeletableSection
@@ -114,7 +116,10 @@ struct SettingsSheet: View {
             Text(title).font(Theme.ui(13)).foregroundStyle(Theme.text)
             Spacer(minLength: 8)
 
+            // Re-enabled: a text field's focus ring is AppKit's job and it draws
+            // the right shape for one. Only buttons needed the rounded override.
             TextField("", text: text)
+                .focusEffectDisabled(false)
                 .textFieldStyle(.plain)
                 .font(Theme.mono(12.5))
                 .multilineTextAlignment(.trailing)
@@ -236,6 +241,7 @@ struct SettingsSheet: View {
             sourceStatus
             SecureField(hasStoredKey ? "A key is saved — paste a new one to replace it" : "sk-ant-…",
                         text: $apiKey)
+                .focusEffectDisabled(false)
                 .textFieldStyle(.plain)
                 .font(Theme.mono(12.5))
                 .padding(.horizontal, 11).padding(.vertical, 9)
@@ -351,6 +357,31 @@ struct SettingsSheet: View {
                 guard !scanRoots.contains(path) else { return }
                 scanRoots.append(path)
                 Settings.shared.scanRoots = scanRoots
+            }
+        }
+    }
+
+    private var startupSection: some View {
+        Section(title: "Starting up",
+                blurb: "DiskDrama watches free space from the menu bar. It can't warn you about a "
+                     + "disk filling up if it isn't running, and a disk fills up precisely when "
+                     + "nobody is thinking about cleanup tools.") {
+            Toggle("Start DiskDrama when I log in", isOn: Binding(
+                get: { startAtLogin },
+                set: { wanted in
+                    startAtLogin = wanted
+                    // Reflect what the system actually did, not what was asked
+                    // for — a refused registration must not leave the switch on.
+                    if !LoginItem.setEnabled(wanted) { startAtLogin = LoginItem.isEnabled }
+                }))
+            .toggleStyle(.checkbox)
+            if LoginItem.needsApproval {
+                HStack(spacing: 8) {
+                    Text("macOS needs you to confirm this in Login Items before it takes effect.")
+                        .settingsCaption()
+                    Button("Open Login Items") { LoginItem.openSystemSettings() }
+                        .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
+                }
             }
         }
     }
