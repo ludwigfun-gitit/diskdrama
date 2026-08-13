@@ -204,6 +204,18 @@ final class Settings {
 
     // MARK: - Onboarding (F05)
 
+    /// How far onboarding got, so it can be resumed rather than restarted.
+    ///
+    /// Step 2 is the Full Disk Access step, and the correct answer to a stubborn
+    /// grant is to relaunch — which without this would throw the user back to
+    /// step 1 and lose the thing they restarted to finish. A resume that forgets
+    /// where it was is worse than no resume: it makes restarting feel like a
+    /// punishment for following the instructions.
+    var onboardingStep: Int {
+        get { defaults.integer(forKey: Key.onboardingStep.rawValue) }
+        set { defaults.set(newValue, forKey: Key.onboardingStep.rawValue) }
+    }
+
     var hasCompletedOnboarding: Bool {
         get { defaults.bool(forKey: Key.completedOnboarding.rawValue) }
         set { defaults.set(newValue, forKey: Key.completedOnboarding.rawValue) }
@@ -231,6 +243,7 @@ final class Settings {
         case lastAlertAt         = "alerts.lastAt"
         case freeSpaceTarget     = "planner.freeSpaceTargetBytes"
         case completedOnboarding = "onboarding.completed"
+        case onboardingStep      = "onboarding.step"
         case fdaBannerDismissed  = "onboarding.fdaBannerDismissedAt"
         case hiddenBlindSpots    = "scan.hiddenBlindSpots"
         case undeletablePaths    = "deletion.refusedByOS"

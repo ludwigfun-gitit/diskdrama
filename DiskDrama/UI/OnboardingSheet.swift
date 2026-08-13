@@ -21,7 +21,7 @@ struct OnboardingSheet: View {
     @Bindable var model: AppModel
     let onScan: () -> Void
 
-    @State private var step = 0
+    @State private var step = Settings.shared.onboardingStep
     @State private var hasAccess = FullDiskAccess.isGranted()
     /// Set once the user has been sent to System Settings, so the sheet can tell
     /// "hasn't started yet" apart from "granted it and nothing happened".
@@ -174,11 +174,17 @@ struct OnboardingSheet: View {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 13)).foregroundStyle(Theme.text3)
                 Text("Granted it and still nothing? macOS often needs the app restarted before a new permission applies. "
-                     + "If you told macOS to \"Quit & Reopen\" and it didn't, this will.")
+                     + "If you told macOS to \"Quit & Reopen\" and it didn't, this will — and you'll come back to this step.")
                     .font(Theme.body(12.5)).foregroundStyle(Theme.text2)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                Button("Relaunch DiskDrama") { Relauncher.relaunch() }
+                Button("Relaunch DiskDrama") {
+                    // Belt and braces: the step is already persisted on every
+                    // move, but this is the one path that deliberately kills the
+                    // process, so it writes before it goes.
+                    Settings.shared.onboardingStep = step
+                    Relauncher.relaunch()
+                }
                     .buttonStyle(GhostButtonStyle(height: 28, horizontalPadding: 12, fontSize: 12.5))
             }
             .padding(.horizontal, 18).padding(.vertical, 13)
@@ -230,12 +236,16 @@ struct OnboardingSheet: View {
             }
             Spacer()
             if step > 0 {
-                Button("Back") { step -= 1 }
+                Button("Back") {
+                    step -= 1
+                    Settings.shared.onboardingStep = step
+                }
                     .buttonStyle(QuietButtonStyle(height: 32))
             }
             Button(primaryLabel) {
                 if step < 2 {
                     step += 1
+                    Settings.shared.onboardingStep = step
                 } else {
                     finish()
                 }
@@ -254,6 +264,7 @@ struct OnboardingSheet: View {
 
     private func finish() {
         Settings.shared.hasCompletedOnboarding = true
+        Settings.shared.onboardingStep = 0
         model.isShowingOnboarding = false
         onScan()
     }
