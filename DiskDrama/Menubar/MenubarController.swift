@@ -87,30 +87,33 @@ final class MenubarController {
     /// rebuilding menu behaviour from scratch to match a mockup.
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
+        // Otherwise AppKit disables — and so dims — every item without an
+        // action, which is all of the informational rows at the top.
+        menu.autoenablesItems = false
 
-        headlineItem = disabled("")
+        headlineItem = caption("")
         headlineItem?.attributedTitle = NSAttributedString(string: "—")
         menu.addItem(headlineItem!)
 
-        capacityItem = disabled("")
+        capacityItem = caption("")
         menu.addItem(capacityItem!)
 
-        checkedItem = disabled("")
+        checkedItem = caption("")
         menu.addItem(checkedItem!)
 
         menu.addItem(.separator())
 
         // The reclaimable line is the whole reason this dropdown is more than a
         // gauge — it is the advisor speaking from the ambient surface.
-        reclaimableItem = disabled("")
+        reclaimableItem = caption("")
         menu.addItem(reclaimableItem!)
-        reclaimableDetailItem = disabled("")
+        reclaimableDetailItem = caption("")
         menu.addItem(reclaimableDetailItem!)
 
         menu.addItem(.separator())
         menu.addItem(action("Open DiskDrama", #selector(openWindow), key: "o"))
         menu.addItem(action("Scan Now", #selector(scanNow), key: "s"))
-        scanItem = disabled("")
+        scanItem = caption("")
         scanItem?.isHidden = true
         menu.addItem(scanItem!)
         stopItem = action("Stop Scan", #selector(stopScan), key: ".")
@@ -185,18 +188,57 @@ final class MenubarController {
         }
     }
 
-    /// A text capacity bar. A menu item cannot host an arbitrary view cheaply,
-    /// and a monospaced block gauge reads accurately at a glance without one.
-    private func capacityBar(_ fraction: Double) -> String {
-        let width = 18
-        let filled = Int((fraction * Double(width)).rounded())
-        return String(repeating: "▓", count: max(0, min(width, filled)))
-            + String(repeating: "░", count: max(0, width - filled))
+    /// A drawn capacity bar.
+    ///
+    /// This was eighteen `▓`/`░` characters — "a monospaced block gauge reads
+    /// accurately at a glance without one", which is true of the reading and
+    /// false of the look. Rendered, it is a dithered checkerboard strip sitting
+    /// among clean type, and it was reported as exactly that.
+    ///
+    /// An `NSImage` rather than a hosted view: a menu redraws on every open and
+    /// this costs one small bitmap, with no view lifecycle to manage. The old
+    /// comment's premise — that a menu item cannot host a view cheaply — is
+    /// sidestepped rather than argued with.
+    private func capacityBar(_ fraction: Double) -> NSImage {
+        let size = NSSize(width: 168, height: 6)
+        let image = NSImage(size: size, flipped: false) { rect in
+            let radius = rect.height / 2
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
+                .setClip()
+            NSColor.tertiaryLabelColor.withAlphaComponent(0.35).setFill()
+            rect.fill()
+
+            let clamped = max(0, min(1, fraction))
+            guard clamped > 0 else { return true }
+            var filled = rect
+            filled.size.width = max(rect.height, rect.width * clamped)
+            // Red only at the point the disk is genuinely in trouble, matching
+            // the menu-bar icon's own thresholds rather than inventing a scale.
+            let colour: NSColor = clamped >= 0.95 ? .systemRed
+                                : clamped >= 0.90 ? .systemOrange
+                                : .secondaryLabelColor
+            colour.setFill()
+            NSBezierPath(roundedRect: filled, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 
-    private func disabled(_ title: String) -> NSMenuItem {
+    /// A row that states something rather than doing something.
+    ///
+    /// It used to set `isEnabled = false`, which is what greyed the top of the
+    /// menu out. Disabled is AppKit's word for "this control exists but you may
+    /// not use it", and it dims accordingly — but these rows are not unavailable
+    /// controls, they are the reading. Dimming them says the app is in a
+    /// degraded state when it is simply telling you the numbers.
+    ///
+    /// With `autoenablesItems` off (set in `buildMenu`) an item with no action
+    /// stays fully drawn and still does nothing when clicked, which is exactly
+    /// what a caption should do.
+    private func caption(_ title: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        item.isEnabled = false
+        item.isEnabled = true
         return item
     }
 
@@ -232,10 +274,9 @@ final class MenubarController {
         }
 
         headlineItem?.attributedTitle = headline(for: info)
-        capacityItem?.attributedTitle = NSAttributedString(
-            string: capacityBar(info.usedFraction),
-            attributes: [.font: NSFont.monospacedSystemFont(ofSize: 11, weight: .regular),
-                         .foregroundColor: NSColor.secondaryLabelColor])
+        // The bar is now an image, so the row carries no text at all.
+        capacityItem?.attributedTitle = NSAttributedString(string: "")
+        capacityItem?.image = capacityBar(info.usedFraction)
 
         let formatter = DateFormatter()
         formatter.timeStyle = .short
@@ -297,6 +338,7 @@ final class MenubarController {
         headlineItem?.attributedTitle = NSAttributedString(
             string: "—", attributes: [.foregroundColor: NSColor.labelColor])
         capacityItem?.attributedTitle = NSAttributedString(string: "")
+        capacityItem?.image = nil
         checkedItem?.attributedTitle = NSAttributedString(string: "Couldn't read the volume")
         reclaimableItem?.isHidden = true
         reclaimableDetailItem?.isHidden = true

@@ -27,38 +27,28 @@ import SwiftUI
 ///
 /// Kept, not removed: keyboard navigation needs a visible focus indicator, and
 /// this ticket was about making it fit rather than making it go away.
+/// Makes AppKit draw its focus ring in the control's own shape.
+///
+/// Third attempt, and the first that uses the mechanism macOS actually
+/// provides. The two before it both tried to *replace* the system ring:
+/// draw a rounded overlay, suppress AppKit's. Both failed, for the same
+/// underlying reason — this runs inside a `ButtonStyle`, so it decorates the
+/// button's **label**, and a label is neither focusable nor the thing AppKit
+/// rings. `.focused()` bound a focus value nothing set; `.focusEffectDisabled()`
+/// applied to the wrong view; `\.isFocused` in the environment reported nothing
+/// useful there either. The visible result went from a square ring to no ring
+/// at all, which is worse.
+///
+/// `contentShape(.focusEffect, …)` is the supported answer: it does not draw
+/// anything, it tells AppKit what shape to ring. So the system draws its own
+/// ring, correctly, in the right shape — and keyboard users keep the ring the
+/// rest of the OS taught them to expect.
 struct FocusRing: ViewModifier {
     var cornerRadius: CGFloat
 
-    /// The focus state of the enclosing control, read from the environment.
-    ///
-    /// This was `@FocusState private var isFocused` plus `.focused($isFocused)`,
-    /// which is why the ring stayed square through two attempts at fixing it.
-    /// The modifier runs inside a `ButtonStyle`, so it decorates the button's
-    /// *label* — and a label is not focusable. `.focused()` there bound a fresh,
-    /// unrelated focus value that nothing ever set, so the rounded overlay never
-    /// drew; and `.focusEffectDisabled()` there applied to the label rather than
-    /// to the Button, so AppKit's own square ring was never suppressed. Both
-    /// halves failed silently, and what showed on screen was the system ring the
-    /// code believed it had turned off.
-    ///
-    /// `\.isFocused` reports the focus of the nearest focusable ancestor, which
-    /// is the control itself.
-    @Environment(\.isFocused) private var isFocused
-
     func body(content: Content) -> some View {
-        content
-            .overlay {
-                if isFocused {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(Theme.accent, lineWidth: 3)
-                        // Sits just outside the fill, the way AppKit's does, so
-                        // it reads as a ring around the control rather than a
-                        // border on it.
-                        .padding(-2.5)
-                }
-            }
-            .animation(Theme.transition, value: isFocused)
+        content.contentShape(.focusEffect,
+                             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 

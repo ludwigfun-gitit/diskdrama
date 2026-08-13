@@ -116,10 +116,7 @@ struct SettingsSheet: View {
             Text(title).font(Theme.ui(13)).foregroundStyle(Theme.text)
             Spacer(minLength: 8)
 
-            // Re-enabled: a text field's focus ring is AppKit's job and it draws
-            // the right shape for one. Only buttons needed the rounded override.
             TextField("", text: text)
-                .focusEffectDisabled(false)
                 .textFieldStyle(.plain)
                 .font(Theme.mono(12.5))
                 .multilineTextAlignment(.trailing)
@@ -241,7 +238,6 @@ struct SettingsSheet: View {
             sourceStatus
             SecureField(hasStoredKey ? "A key is saved — paste a new one to replace it" : "sk-ant-…",
                         text: $apiKey)
-                .focusEffectDisabled(false)
                 .textFieldStyle(.plain)
                 .font(Theme.mono(12.5))
                 .padding(.horizontal, 11).padding(.vertical, 9)
