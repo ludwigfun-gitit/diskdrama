@@ -181,10 +181,13 @@ struct OnDeviceProvider: ExplanationProvider {
     about what it costs to get back — those are written elsewhere.
     - Do not list the measurements back mechanically, and do not restate the \
     "Identified as" label as a sentence.
-    - Say which project or folder it belongs to, taken from the location you \
-    were given. "installed for the webapp project" is the whole point; \
-    "installed for one project" is the generic text you were asked to improve \
-    on. If the location does not make the owner clear, leave it out.
+    - Name the owning project, app or folder ONLY if its name appears literally \
+    in the location you were given, and copy it exactly as it appears there. \
+    Never invent a name, never infer one from the kind of folder it is, and \
+    never reuse any name that appears in these instructions. If the location \
+    does not name an owner, say nothing about ownership at all — an unowned \
+    description is correct, and a guessed owner is a false statement about \
+    someone's disk.
     - Two sentences. Three at the very most. This sits in a fixed panel and \
     length pushes the important part out of view.
     - Plain language, no jargon, no bullet points, no headings.
