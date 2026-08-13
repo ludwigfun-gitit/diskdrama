@@ -408,6 +408,7 @@ struct ExplanationPanel: View {
                 model.presentDeleteSheet(for: item)
             }
             .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 15, fontSize: 12.5))
+            .blockedWhile(model.destructiveBlockReason)
         }
     }
 }

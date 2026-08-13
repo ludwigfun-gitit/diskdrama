@@ -54,7 +54,7 @@ struct HistoryPane: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(model.cleanupLog) { entry in
-                    HistoryRow(entry: entry) { Task { await model.undo(entry) } }
+                    HistoryRow(entry: entry, blockReason: model.destructiveBlockReason) { Task { await model.undo(entry) } }
                 }
                 Text(footer)
                     .font(Theme.body(12.5))
@@ -71,6 +71,9 @@ struct HistoryPane: View {
 
 private struct HistoryRow: View {
     let entry: CleanupEntry
+    /// A restore writes the folder back while the walk may be counting its
+    /// parent — the same integrity problem as a deletion, in reverse.
+    var blockReason: String? = nil
     let onUndo: () -> Void
 
     var body: some View {
@@ -101,6 +104,7 @@ private struct HistoryRow: View {
             if entry.isRestorable {
                 Button("Put back", action: onUndo)
                     .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
+                    .blockedWhile(blockReason)
             }
 
             Text(ByteFormat.compact(entry.sizeBytes))

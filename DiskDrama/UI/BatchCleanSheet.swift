@@ -177,6 +177,7 @@ struct BatchCleanSheet: View {
                 }
                 .buttonStyle(AccentButtonStyle(height: 32, horizontalPadding: 18, fontSize: 13.5,
                                                isDestructive: !model.moveToTrash))
+                .blockedWhile(model.destructiveBlockReason)
                 .disabled(isWorking || chosen.isEmpty)
                 }
             }

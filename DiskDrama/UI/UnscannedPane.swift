@@ -305,6 +305,7 @@ private struct UnscannedDetail: View {
                 // the only thing that brings that forward.
                 Button("Scan now", action: onScan)
                     .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 14, fontSize: 12.5))
+                    .blockedWhile(model.scanStartBlockReason)
                 Button("Stop looking here") { model.exclude(path: spot.path) }
                     .buttonStyle(GhostButtonStyle(height: 29, fontSize: 12.5))
             } else if case .excluded = model.state(of: spot) {
@@ -323,6 +324,7 @@ private struct UnscannedDetail: View {
                         onScan()
                     }
                     .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 14, fontSize: 12.5))
+                    .blockedWhile(model.scanStartBlockReason)
                 }
                 Button("Stop excluding") { model.unexclude(path: spot.path) }
                     .buttonStyle(GhostButtonStyle(height: 29, fontSize: 12.5))
@@ -334,6 +336,7 @@ private struct UnscannedDetail: View {
                 if BlindSpotCopy.retryCouldHelp(spot.reason) {
                     Button("Retry", action: onScan)
                         .buttonStyle(GhostButtonStyle(height: 29, fontSize: 12.5))
+                        .blockedWhile(model.scanStartBlockReason)
                 }
                 // Named for what it does, not for the other feature. The app's
                 // "Ignored" list (F18) still scans and still counts the folder;

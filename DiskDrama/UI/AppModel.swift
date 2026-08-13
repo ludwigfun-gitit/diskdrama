@@ -135,6 +135,37 @@ final class AppModel {
     /// can have changed — the same reason F05's onboarding polls.
     private(set) var hasFullDiskAccess = FullDiskAccess.isGranted()
 
+    // MARK: - What a running scan holds back
+
+    /// Why a destructive action is unavailable, or nil when it is fine.
+    ///
+    /// Deleting mid-scan corrupts the *measurement*, not merely the display: the
+    /// walker may be part-way through counting the folder being removed, and
+    /// nothing downstream can detect that the total it produced was wrong.
+    /// `driftTolerance` catches stale *figures* at the moment of action, which is
+    /// a different problem and already handled.
+    ///
+    /// Deliberately narrow rather than the blanket lock most apps in this
+    /// category use. Their scans finish in seconds; this one has been observed at
+    /// 6m51s, and freezing the window for that long would take away History,
+    /// Settings, exclusions, the blind-spot lists and the previous scan's
+    /// results — none of which touch the walk. Snapshots are persisted precisely
+    /// so the last result stays readable while a new one runs.
+    ///
+    /// Cloud evictions are not blocked: the cloud roots are excluded from every
+    /// scan, so nothing there is being counted.
+    var destructiveBlockReason: String? {
+        scanEngine.isRunning
+            ? "Not while a scan is running — removing a folder it's still counting would leave the totals wrong."
+            : nil
+    }
+
+    /// Starting a second scan isn't destructive, just impossible. Separate so the
+    /// control can say the true thing rather than the dramatic one.
+    var scanStartBlockReason: String? {
+        scanEngine.isRunning ? "A scan is already running." : nil
+    }
+
     var deletionError: String?
 
     /// Set when a deletion was refused because the folder no longer matches what

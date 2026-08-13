@@ -50,6 +50,17 @@ struct FocusRing: ViewModifier {
 }
 
 extension View {
+    /// Disables a control while something is holding it back, and carries the
+    /// reason on hover.
+    ///
+    /// A greyed-out button that will not say why is the thing users report as
+    /// broken — the same complaint that produced the refusal work. Passing the
+    /// sentence in rather than a Bool makes the explanation impossible to forget
+    /// at the call site.
+    func blockedWhile(_ reason: String?) -> some View {
+        disabled(reason != nil).help(reason ?? "")
+    }
+
     /// Applies a focus ring matching this control's corner radius.
     func focusRing(cornerRadius: CGFloat) -> some View {
         modifier(FocusRing(cornerRadius: cornerRadius))

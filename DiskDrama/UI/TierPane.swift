@@ -43,6 +43,7 @@ struct TierPane: View {
                         model.presentBatchSheet(for: tier)
                     }
                     .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 14))
+                    .blockedWhile(model.destructiveBlockReason)
                 }
             }
 
