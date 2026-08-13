@@ -25,6 +25,13 @@ enum PurchaseLink {
     static let lookupKey = "diskdrama_lifetime"
 
     /// DiskDrama Pro is a one-time purchase, so there is no monthly/yearly key.
+    ///
+    /// The purchase email's download link resolves to
+    /// `diskdrama-releases/releases/latest/download/DiskDrama.dmg`. Ludwig's
+    /// call, 2026-08-13: treat that path as correct and settled. `/latest/`
+    /// follows each new release on its own, so it is right the moment the first
+    /// release is cut and needs no per-release step here, ever. Nothing in the
+    /// app should gate on it or check it.
     static let checkoutURL = URL(string:
         "https://bloosoftware-fulfillment.netlify.app/.netlify/functions/checkout?price=\(lookupKey)")!
 

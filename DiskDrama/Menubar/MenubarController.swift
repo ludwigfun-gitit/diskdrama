@@ -1,4 +1,5 @@
 import AppKit
+import CoreText
 
 /// The ambient monitor: status item, its dropdown, and the poll that keeps them
 /// current. Carried over from v0 (F01–F04), reshaped so the dropdown can grow
@@ -195,16 +196,32 @@ final class MenubarController {
         }
     }
 
-    /// The app's display face, in the menu.
+    /// The app's display face, at the size the headline used to be.
     ///
-    /// Space Grotesk is what every other title in DiskDrama uses, so the
-    /// dropdown reads as the same product rather than as a system menu that
-    /// happens to belong to it. Falls back to the menu font if the family is
-    /// missing — a menu that renders in the wrong face is a blemish, one that
-    /// renders in nothing is a bug.
+    /// The original line was two treatments welded together — 17pt semibold
+    /// monospaced for the figure, 11.5pt secondary for "free of 494.4 GB" — and
+    /// flattening it to one treatment quietly shrank the headline to 13pt along
+    /// with everything else. Uniform was the point; smaller was not. So the whole
+    /// sentence takes the 17pt the number had.
+    ///
+    /// Space Grotesk is what every other title in DiskDrama uses, so the dropdown
+    /// reads as part of the app rather than as a system menu that happens to
+    /// belong to it. The family resolves to its Light instance by default, hence
+    /// the explicit weight; falls back to the system face if the family is ever
+    /// missing, because rendering in the wrong face is a blemish and rendering in
+    /// nothing is a bug.
     private static let displayFont: NSFont = {
-        let size = NSFont.menuFont(ofSize: 0).pointSize
-        return NSFont(name: "Space Grotesk", size: size) ?? NSFont.menuFont(ofSize: 0)
+        let size: CGFloat = 17
+        guard let base = NSFont(name: "Space Grotesk", size: size) else {
+            return NSFont.systemFont(ofSize: size, weight: .semibold)
+        }
+        // Space Grotesk ships as a variable font, so the weight is an axis, not
+        // a trait: `.traits` with a weight is silently ignored and you get the
+        // Light default back. 600 is semibold on the 'wght' axis (0x77676874).
+        let descriptor = base.fontDescriptor.addingAttributes([
+            kCTFontVariationAttribute as NSFontDescriptor.AttributeName: [0x77676874: 600]
+        ])
+        return NSFont(descriptor: descriptor, size: size) ?? base
     }()
 
     /// The capacity bar, as a menu item view.
