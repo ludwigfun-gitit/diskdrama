@@ -100,6 +100,9 @@ final class MenubarController {
         menu.addItem(headlineItem!)
 
         capacityItem = caption("")
+        let bar = CapacityBarView(frame: NSRect(x: 0, y: 0, width: 220, height: 16))
+        bar.autoresizingMask = [.width]
+        capacityItem?.view = bar
         menu.addItem(capacityItem!)
 
         checkedItem = caption("")
@@ -204,50 +207,48 @@ final class MenubarController {
         return NSFont(name: "Space Grotesk", size: size) ?? NSFont.menuFont(ofSize: 0)
     }()
 
-    /// A drawn capacity bar.
+    /// The capacity bar, as a menu item view.
     ///
-    /// This was eighteen `▓`/`░` characters — "a monospaced block gauge reads
-    /// accurately at a glance without one", which is true of the reading and
-    /// false of the look. Rendered, it is a dithered checkerboard strip sitting
-    /// among clean type, and it was reported as exactly that.
+    /// Third shape for this thing. It began as eighteen `▓`/`░` characters, which
+    /// read accurately and looked like a dithered checkerboard. It became an
+    /// `NSImage`, which looked right but could not span the menu: an image has to
+    /// state its width up front, and a menu's width is decided after layout by
+    /// whichever row is widest — here an action row whose ⌘-shortcut column the
+    /// captions know nothing about. Measuring the captions therefore always
+    /// undershot.
     ///
-    /// An `NSImage` rather than a hosted view: a menu redraws on every open and
-    /// this costs one small bitmap, with no view lifecycle to manage. The old
-    /// comment's premise — that a menu item cannot host a view cheaply — is
-    /// sidestepped rather than argued with.
-    private func capacityBar(_ fraction: Double, availableBytes: Int64, width: CGFloat) -> NSImage {
-        let size = NSSize(width: max(168, width), height: 6)
-        let image = NSImage(size: size, flipped: false) { rect in
-            let radius = rect.height / 2
-            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius)
-                .setClip()
+    /// A menu item with a `view` is laid out at the menu's own content width, so
+    /// the question stops needing an answer. Insets match the menu's text margin
+    /// so the bar lines up with the sentences above and below it.
+    private final class CapacityBarView: NSView {
+        var fraction: Double = 0
+        var colour: NSColor = .secondaryLabelColor
+
+        private let inset: CGFloat = 14
+        private let barHeight: CGFloat = 6
+
+        override var intrinsicContentSize: NSSize {
+            NSSize(width: NSView.noIntrinsicMetric, height: 16)
+        }
+
+        override func draw(_ dirtyRect: NSRect) {
+            let track = NSRect(x: inset,
+                               y: (bounds.height - barHeight) / 2,
+                               width: max(0, bounds.width - inset * 2),
+                               height: barHeight)
+            guard track.width > 0 else { return }
+            let radius = barHeight / 2
+
             NSColor.tertiaryLabelColor.withAlphaComponent(0.35).setFill()
-            rect.fill()
+            NSBezierPath(roundedRect: track, xRadius: radius, yRadius: radius).fill()
 
             let clamped = max(0, min(1, fraction))
-            guard clamped > 0 else { return true }
-            var filled = rect
-            filled.size.width = max(rect.height, rect.width * clamped)
-            // The same two numbers the icon and the alert use — the user's own
-            // thresholds from Settings, in bytes of *free* space.
-            //
-            // This was `clamped >= 0.95 ? .red : clamped >= 0.90 ? .orange`,
-            // described in its own comment as "matching the menu-bar icon's own
-            // thresholds". It matched nothing: those are fractions of used
-            // space, hard-coded, while the icon reads configurable byte counts
-            // of free space. On a 494 GB disk 0.90 is 49 GB free, so a bar could
-            // sit grey while the icon beside it was already orange — two parts
-            // of one menu disagreeing about whether the disk is in trouble.
-            let settings = Settings.shared
-            let colour: NSColor = availableBytes < settings.criticalThresholdBytes ? .systemRed
-                                : availableBytes < settings.lowThresholdBytes      ? .systemOrange
-                                : .secondaryLabelColor
+            guard clamped > 0 else { return }
+            var filled = track
+            filled.size.width = max(barHeight, track.width * clamped)
             colour.setFill()
             NSBezierPath(roundedRect: filled, xRadius: radius, yRadius: radius).fill()
-            return true
         }
-        image.isTemplate = false
-        return image
     }
 
     /// A row that states something rather than doing something.
@@ -332,29 +333,24 @@ final class MenubarController {
             attributes: [.font: NSFont.systemFont(ofSize: 11),
                          .foregroundColor: NSColor.secondaryLabelColor])
 
-        sizeCapacityBar()
+        refreshCapacityBar()
     }
 
-    /// Draws the bar as wide as the widest row, so it spans the menu instead of
-    /// stopping halfway across it.
+    /// Updates the bar's state. Width is AppKit's problem now, not ours.
     ///
-    /// A menu is only as wide as its widest item, and that item is text whose
-    /// width depends on the numbers of the moment — "checked 12:12" and a
-    /// biggest-consumer sentence that changes with every scan. A fixed 168pt bar
-    /// was therefore right at no width in particular and looked half-finished at
-    /// most of them. Measuring the rows it sits among is the only way to be
-    /// correct at all of them.
-    ///
-    /// Called last, once every other title for this render is in place.
-    private func sizeCapacityBar() {
-        guard let info = lastRenderedInfo else { return }
-        let widest = [headlineItem, checkedItem, reclaimableItem, reclaimableDetailItem]
-            .compactMap { $0?.attributedTitle?.size().width }
-            .max() ?? 168
-        capacityItem?.attributedTitle = NSAttributedString(string: "")
-        capacityItem?.image = capacityBar(info.usedFraction,
-                                          availableBytes: info.availableBytes,
-                                          width: widest)
+    /// Colour comes from the user's own thresholds in Settings — the same two
+    /// numbers the menu-bar icon and the low-space alert read, in bytes of
+    /// *free* space. An earlier version used hard-coded fractions of used space
+    /// while claiming to match the icon, so the bar could sit grey with the icon
+    /// already orange a few pixels above it.
+    private func refreshCapacityBar() {
+        guard let info = lastRenderedInfo,
+              let bar = capacityItem?.view as? CapacityBarView else { return }
+        bar.fraction = info.usedFraction
+        bar.colour = info.availableBytes < settings.criticalThresholdBytes ? .systemRed
+                   : info.availableBytes < settings.lowThresholdBytes      ? .systemOrange
+                   : .secondaryLabelColor
+        bar.needsDisplay = true
     }
 
     /// One sentence, one treatment.
@@ -390,8 +386,10 @@ final class MenubarController {
         headlineItem?.attributedTitle = NSAttributedString(
             string: "—", attributes: [.foregroundColor: NSColor.labelColor])
         lastRenderedInfo = nil
-        capacityItem?.attributedTitle = NSAttributedString(string: "")
-        capacityItem?.image = nil
+        if let bar = capacityItem?.view as? CapacityBarView {
+            bar.fraction = 0
+            bar.needsDisplay = true
+        }
         checkedItem?.attributedTitle = NSAttributedString(string: "Couldn't read the volume")
         reclaimableItem?.isHidden = true
         reclaimableDetailItem?.isHidden = true

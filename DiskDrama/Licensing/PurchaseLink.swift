@@ -1,0 +1,42 @@
+import AppKit
+import Foundation
+
+/// Where the Buy button goes.
+///
+/// One constant and one `NSWorkspace.open` — the entire app-side purchase
+/// integration. Checkout, licence issuance, email delivery, activation and
+/// re-validation all live in the shared Bloosoftware fulfillment backend, which
+/// Visuals and Turfs already sell through. Nothing about payments is
+/// implemented per-app.
+///
+/// **DiskDrama is Stripe, not StoreKit.** Full Disk Access is incompatible with
+/// the App Sandbox, so the app is not App Store eligible as specified, and it
+/// ships by direct download. Keepers' paywall is StoreKit and is precedent for
+/// nothing here.
+enum PurchaseLink {
+
+    /// A Stripe `lookup_key`, never a price ID.
+    ///
+    /// Stripe Prices are immutable: changing a price creates a *new* Price
+    /// object with a new ID. A lookup_key is a stable nickname that gets moved
+    /// onto the replacement, so a price change is a Dashboard action and every
+    /// shipped build keeps working with no rebuild. Hardcoding a price ID would
+    /// reintroduce precisely the problem the 2026-08 rework removed.
+    static let lookupKey = "diskdrama_lifetime"
+
+    /// DiskDrama Pro is a one-time purchase, so there is no monthly/yearly key.
+    static let checkoutURL = URL(string:
+        "https://bloosoftware-fulfillment.netlify.app/.netlify/functions/checkout?price=\(lookupKey)")!
+
+    /// Deliberately absent: the price.
+    ///
+    /// No amount, no formatted string, no cached figure. A number here is a
+    /// second source of truth that goes stale the moment the Dashboard changes
+    /// and is wrong on screen until the next release. If the paywall needs to
+    /// show a price, the answer is a read-only pricing endpoint — which does not
+    /// exist yet, and is Ludwig's call to commission rather than something to
+    /// paper over with a literal.
+    static func openCheckout() {
+        NSWorkspace.shared.open(checkoutURL)
+    }
+}
