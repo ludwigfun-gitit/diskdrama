@@ -318,20 +318,24 @@ final class MenubarController {
                          .foregroundColor: NSColor.secondaryLabelColor])
     }
 
+    /// One sentence, one treatment.
+    ///
+    /// The free figure used to be 17pt semibold monospaced and threshold-
+    /// coloured, with "free of 494.4 GB" trailing it at 11.5pt secondary — a
+    /// display number and a caption glued into a single line. In a dropdown
+    /// opened *from* that same number, coloured the same way, in a bar directly
+    /// below it that already carries the same warning, it was the fourth
+    /// statement of one fact. Three of those are ambient; this one was just
+    /// loud.
+    ///
+    /// Plain now. The colour still lives where it does work: the menu-bar item
+    /// itself, which has to catch the eye from across the screen, and the
+    /// capacity bar, which is the picture of it.
     private func headline(for info: DiskInfo) -> NSAttributedString {
-        let free = info.availableBytes
-        let color: NSColor = free < settings.criticalThresholdBytes ? .systemRed
-                           : free < settings.lowThresholdBytes    ? .systemOrange
-                           : .labelColor
-        let text = NSMutableAttributedString(
-            string: ByteFormat.compact(free),
-            attributes: [.font: NSFont.monospacedSystemFont(ofSize: 17, weight: .semibold),
-                         .foregroundColor: color])
-        text.append(NSAttributedString(
-            string: "  free of \(ByteFormat.compact(info.totalBytes))",
-            attributes: [.font: NSFont.systemFont(ofSize: 11.5),
-                         .foregroundColor: NSColor.secondaryLabelColor]))
-        return text
+        NSAttributedString(
+            string: "\(ByteFormat.compact(info.availableBytes)) free of \(ByteFormat.compact(info.totalBytes))",
+            attributes: [.font: NSFont.menuFont(ofSize: 0),
+                         .foregroundColor: NSColor.labelColor])
     }
 
     /// F01's failure case: volume unreadable → show `—` and say why in the tooltip,
