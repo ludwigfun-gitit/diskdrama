@@ -92,9 +92,6 @@ final class MenubarController {
     /// rebuilding menu behaviour from scratch to match a mockup.
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
-        // Otherwise AppKit disables — and so dims — every item without an
-        // action, which is all of the informational rows at the top.
-        menu.autoenablesItems = false
 
         headlineItem = caption("")
         headlineItem?.attributedTitle = NSAttributedString(string: "—")
@@ -104,6 +101,9 @@ final class MenubarController {
         let bar = CapacityBarView(frame: NSRect(x: 0, y: 0, width: 220, height: 16))
         bar.autoresizingMask = [.width]
         capacityItem?.view = bar
+        // Assigning a view re-enables the item, and an enabled row tracks the
+        // pointer. The bar is a picture, not a control.
+        capacityItem?.isEnabled = false
         menu.addItem(capacityItem!)
 
         checkedItem = caption("")
@@ -248,6 +248,11 @@ final class MenubarController {
             NSSize(width: NSView.noIntrinsicMetric, height: 16)
         }
 
+        /// AppKit keeps a view-bearing item enabled whatever `isEnabled` says,
+        /// and an enabled row tracks the pointer. Refusing hits keeps the
+        /// highlight off a row that is a picture rather than a control.
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
         override func draw(_ dirtyRect: NSRect) {
             let track = NSRect(x: inset,
                                y: (bounds.height - barHeight) / 2,
@@ -270,18 +275,19 @@ final class MenubarController {
 
     /// A row that states something rather than doing something.
     ///
-    /// It used to set `isEnabled = false`, which is what greyed the top of the
-    /// menu out. Disabled is AppKit's word for "this control exists but you may
-    /// not use it", and it dims accordingly — but these rows are not unavailable
-    /// controls, they are the reading. Dimming them says the app is in a
-    /// degraded state when it is simply telling you the numbers.
+    /// Disabled — and the reason is the hover highlight, not the colour.
     ///
-    /// With `autoenablesItems` off (set in `buildMenu`) an item with no action
-    /// stays fully drawn and still does nothing when clicked, which is exactly
-    /// what a caption should do.
+    /// I enabled these once to un-fade them, which was the wrong diagnosis. The
+    /// greyness comes from the explicit `secondaryLabelColor` and
+    /// `tertiaryLabelColor` in their attributed titles, and an attributed colour
+    /// survives being disabled, so enabling them changed no colour at all. What
+    /// it did change was tracking: an enabled item highlights under the pointer,
+    /// so four rows that cannot be clicked began advertising that they could.
+    ///
+    /// A caption should look like a caption and behave like one.
     private func caption(_ title: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        item.isEnabled = true
+        item.isEnabled = false
         return item
     }
 
@@ -380,14 +386,24 @@ final class MenubarController {
     /// statement of one fact. Three of those are ambient; this one was just
     /// loud.
     ///
-    /// Plain now. The colour still lives where it does work: the menu-bar item
-    /// itself, which has to catch the eye from across the screen, and the
-    /// capacity bar, which is the picture of it.
+    /// Two sizes again, after a detour through one. Flattening it took the
+    /// hierarchy out along with the noise, and the hierarchy was never the
+    /// problem — the colour was. So the figure keeps its size and the app's
+    /// display face, the total keeps the small system face the rest of the menu
+    /// uses, and both are the grey of a disabled row.
+    ///
+    /// The colour still lives where it does work: the menu-bar item, which has
+    /// to catch the eye from across a screen, and the bar below, which is the
+    /// picture of it. Nothing on this row competes with either.
     private func headline(for info: DiskInfo) -> NSAttributedString {
-        NSAttributedString(
-            string: "\(ByteFormat.compact(info.availableBytes)) free of \(ByteFormat.compact(info.totalBytes))",
-            attributes: [.font: Self.displayFont,
-                         .foregroundColor: NSColor.labelColor])
+        let grey = NSColor.disabledControlTextColor
+        let text = NSMutableAttributedString(
+            string: ByteFormat.compact(info.availableBytes),
+            attributes: [.font: Self.displayFont, .foregroundColor: grey])
+        text.append(NSAttributedString(
+            string: "  free of \(ByteFormat.compact(info.totalBytes))",
+            attributes: [.font: NSFont.systemFont(ofSize: 11.5), .foregroundColor: grey]))
+        return text
     }
 
     /// F01's failure case: volume unreadable → show `—` and say why in the tooltip,
