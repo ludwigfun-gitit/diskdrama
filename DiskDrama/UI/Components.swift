@@ -27,31 +27,6 @@ import SwiftUI
 ///
 /// Kept, not removed: keyboard navigation needs a visible focus indicator, and
 /// this ticket was about making it fit rather than making it go away.
-/// Makes AppKit draw its focus ring in the control's own shape.
-///
-/// Third attempt, and the first that uses the mechanism macOS actually
-/// provides. The two before it both tried to *replace* the system ring:
-/// draw a rounded overlay, suppress AppKit's. Both failed, for the same
-/// underlying reason — this runs inside a `ButtonStyle`, so it decorates the
-/// button's **label**, and a label is neither focusable nor the thing AppKit
-/// rings. `.focused()` bound a focus value nothing set; `.focusEffectDisabled()`
-/// applied to the wrong view; `\.isFocused` in the environment reported nothing
-/// useful there either. The visible result went from a square ring to no ring
-/// at all, which is worse.
-///
-/// `contentShape(.focusEffect, …)` is the supported answer: it does not draw
-/// anything, it tells AppKit what shape to ring. So the system draws its own
-/// ring, correctly, in the right shape — and keyboard users keep the ring the
-/// rest of the OS taught them to expect.
-struct FocusRing: ViewModifier {
-    var cornerRadius: CGFloat
-
-    func body(content: Content) -> some View {
-        content.contentShape(.focusEffect,
-                             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-    }
-}
-
 extension View {
     /// Disables a control while something is holding it back, and carries the
     /// reason on hover.
@@ -64,10 +39,20 @@ extension View {
         disabled(reason != nil).help(reason ?? "")
     }
 
-    /// Applies a focus ring matching this control's corner radius.
-    func focusRing(cornerRadius: CGFloat) -> some View {
-        modifier(FocusRing(cornerRadius: cornerRadius))
-    }
+    /// Kept as a no-op so the call sites still read as intentional.
+    ///
+    /// DD.B006 asked for the focus ring to match each control's corner radius.
+    /// Three attempts failed: a `@FocusState` overlay and a `.focusEffectDisabled()`
+    /// suppression, both of which decorated the button's *label* rather than the
+    /// button — a label is neither focusable nor the thing AppKit rings — and
+    /// then `contentShape(.focusEffect, …)`, which is the documented mechanism
+    /// and still produced square corners from inside a `ButtonStyle`.
+    ///
+    /// Closed as won't-fix by Ludwig, 2026-08-13: the ring is visible and
+    /// legible, the corners are cosmetic, and the second attempt briefly removed
+    /// the ring altogether — which is a real accessibility regression traded for
+    /// a rounding. The system ring stays. Nothing here suppresses or replaces it.
+    func focusRing(cornerRadius: CGFloat) -> some View { self }
 }
 
 struct AccentButtonStyle: ButtonStyle {
