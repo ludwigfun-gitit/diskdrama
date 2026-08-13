@@ -140,10 +140,25 @@ struct OnboardingSheet: View {
     private var accessStatus: some View {
         HStack(spacing: 14) {
             GlowDot(size: 8, color: hasAccess ? Theme.accent : Theme.glow)
-            Text(hasAccess
-                 ? "Access granted — I can see everything now."
-                 : "Waiting for access — I'll notice the moment you grant it.")
-                .font(Theme.body(13.5)).foregroundStyle(Theme.text)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(hasAccess
+                     ? "Access granted — I can see everything now."
+                     : "Waiting for access — I'll notice the moment you grant it.")
+                    .font(Theme.body(13.5)).foregroundStyle(Theme.text)
+                // Said before macOS says otherwise, because its dialog is
+                // misleading here twice over: the restart is unnecessary — this
+                // checks by trying to read a protected folder, so a grant
+                // registers within half a second — and on a menu-bar app the
+                // "Quit & Reopen" button frequently does not quit anything.
+                // Watching nothing happen after choosing it reads as a failure,
+                // at the exact moment the thing has in fact worked.
+                if !hasAccess {
+                    Text("macOS may offer to quit and reopen DiskDrama. You don't have to — I check by reading, "
+                         + "not by restarting, so I'll see the grant either way.")
+                        .font(Theme.body(12)).foregroundStyle(Theme.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
             Spacer(minLength: 8)
             if !hasAccess {
                 Button {
