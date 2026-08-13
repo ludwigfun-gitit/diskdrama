@@ -108,6 +108,48 @@ The lesson worth keeping is about the evidence, not the API: a temporal
 correlation across a 30-minute delay identified the wrong call, and the only
 thing that separated them was a controlled test with a control file.
 
+### 4. Eviction is not durable while a download is queued — **found in step 2**
+
+The most important hazard, and the one that nearly shipped unnoticed.
+
+Evicting the 17.46 GB earlier appeared to work: every file returned
+`st_blocks == 0`, both roots dropped to the 0.22 GB baseline, free space rose.
+Fifty minutes later `brctl status` showed four *active downloaders* for exactly
+those files, sharing one operation ID queued at the time of the original
+enumeration:
+
+```
+695.9 MB  downloading 97.6%   active
+  5.81 GB downloading  5.1%   active
+  4.69 GB downloading 48.8%   active
+  3.29 GB downloading 97.7%   active
+```
+
+`evictUbiquitousItem` frees the local copy. It does **not** cancel a pending
+provider operation, and nothing in `brctl` or `fileproviderctl` exposes a cancel.
+So the provider simply fetches it all again, and the reclaimed space evaporates
+with no error and no notification.
+
+Consequences for the build, all mandatory:
+
+- Read `isDownloadRequested` and `isDownloading` (already in the `evaluate`
+  output) **before** offering eviction. An item with a queued download must not
+  be offered — the button cannot deliver what it says.
+- After evicting, **verify the eviction held** rather than reporting bytes
+  optimistically. Re-check `st_blocks` after a delay before crediting anything.
+- This settles Decision 3 far more strongly than the purgeable-accounting
+  argument did. Evictions must never count toward all-time freed: the bytes can
+  come back on their own, and a figure that counts them would be wrong in the
+  one direction users notice.
+
+It also explains step 2's other result. `startDownloadingUbiquitousItem`
+returned success but left `isDownloadRequested = 0` — the legacy ubiquity API
+looks unwired under File Provider — and a plain `open`/`read` of an evicted 8 MB
+file **blocked for 6m40s without completing**, because the provider was
+saturated by these transfers. Which is a second reason DiskDrama must never read
+cloud file contents: on a busy provider a read is an unbounded wait, exactly the
+§5.1 hazard in a different costume.
+
 ### 3. `kMDItemPhysicalSize` is fiction for cloud files
 
 It echoes the logical size. It claimed 140 files over 100 MB totalling 98.4 GB;
@@ -193,8 +235,13 @@ Original framing kept for the reasoning behind each:
 
 - ~~Hazard 2 confirmed or ruled out before any implementation.~~ **Done** —
   ruled out, three forms tested with controls. See Hazard 2.
-- Eviction round-trip on a disposable file per provider: evict, confirm
-  `st_blocks == 0`, re-download, confirm bytes return.
+- ~~Eviction round-trip: evict, confirm `st_blocks == 0`, re-download, confirm
+  bytes return.~~ **Step 2 run, partially blocked.** Eviction verified (7 files,
+  17.46 GB, `st_blocks` → 0, files intact, logical size unchanged). Reversal
+  **not** verified: the legacy download API is a no-op and a read blocks
+  indefinitely on a busy provider. Re-run on a machine that is not mid-transfer
+  before shipping — the claim "it comes back on demand" is the feature's whole
+  safety story and is currently unproven.
 - Card total reconciles with `du` on a folder small enough to `du` safely.
 - The pane renders and refreshes with both roots empty, with one root empty, and
   with Spotlight disabled — the index is a floor, and the copy must say so
