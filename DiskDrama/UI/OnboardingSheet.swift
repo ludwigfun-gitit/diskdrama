@@ -69,7 +69,8 @@ struct OnboardingSheet: View {
     // MARK: - Steps
 
     private var welcome: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Self.sectionSpacing) {
+            VStack(alignment: .leading, spacing: Self.withinSection) {
             Text("I find the space, you decide")
                 .font(Theme.display(28))
                 .foregroundStyle(Theme.text)
@@ -80,6 +81,7 @@ struct OnboardingSheet: View {
                 .foregroundStyle(Theme.text2)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 520, alignment: .leading)
+            }
 
             HStack(spacing: 14) {
                 reassurance("What I do",
@@ -87,7 +89,6 @@ struct OnboardingSheet: View {
                 reassurance("What I never do",
                             "Delete anything you didn't ask me to delete. Not on a schedule, not automatically, not ever.")
             }
-            .padding(.top, 8)
         }
     }
 
@@ -99,6 +100,15 @@ struct OnboardingSheet: View {
     /// threshold the menu-bar item actually warns at. Neither is a placebo —
     /// a question whose answer changes nothing retroactively devalues the ones
     /// that mattered.
+    /// Two spacings, so the panes have a rhythm rather than a single gap.
+    ///
+    /// A heading and its own paragraph are one thing and stay close; separate
+    /// sections are separate and get room. Every step used one flat spacing
+    /// before, which made a title look as far from its own sentence as it did
+    /// from the next question.
+    private static let sectionSpacing: CGFloat = 22
+    private static let withinSection: CGFloat = 8
+
     private static let offeredThresholdsGB = [10, 20, 50]
 
     private static func nearestOffered(_ bytes: Int64) -> Int {
@@ -107,15 +117,17 @@ struct OnboardingSheet: View {
     }
 
     private var guidingQuestions: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Two questions, then I'll get out of the way")
-                .font(Theme.display(28))
-                .foregroundStyle(Theme.text)
-            Text("Both are already answered with the common case — change them if they're wrong.")
-                .font(Theme.body(15)).lineSpacing(5)
-                .foregroundStyle(Theme.text2)
+        VStack(alignment: .leading, spacing: Self.sectionSpacing) {
+            VStack(alignment: .leading, spacing: Self.withinSection) {
+                Text("Two questions, then I'll get out of the way")
+                    .font(Theme.display(28))
+                    .foregroundStyle(Theme.text)
+                Text("Both are already answered with the common case — change them if they're wrong.")
+                    .font(Theme.body(15)).lineSpacing(5)
+                    .foregroundStyle(Theme.text2)
+            }
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Self.withinSection) {
                 Text("What mostly fills this Mac?")
                     .font(Theme.ui(13.5, weight: .semibold)).foregroundStyle(Theme.text)
                 HStack(spacing: 8) {
@@ -125,7 +137,7 @@ struct OnboardingSheet: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: Self.withinSection) {
                 Text("Tell me when free space drops below")
                     .font(Theme.ui(13.5, weight: .semibold)).foregroundStyle(Theme.text)
                 HStack(spacing: 8) {
@@ -180,7 +192,8 @@ struct OnboardingSheet: View {
     }
 
     private var fullDiskAccess: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: Self.sectionSpacing) {
+            VStack(alignment: .leading, spacing: Self.withinSection) {
             Text("Let me see the whole picture")
                 .font(Theme.display(28))
                 .foregroundStyle(Theme.text)
@@ -193,8 +206,9 @@ struct OnboardingSheet: View {
             .foregroundStyle(Theme.text2)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: 520, alignment: .leading)
+            }
 
-            accessStatus.padding(.top, 10)
+            accessStatus
             stubbornAccessHelp
         }
     }
@@ -225,16 +239,17 @@ struct OnboardingSheet: View {
     }
 
     private var scanning: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Having a look…")
-                .font(Theme.display(28)).foregroundStyle(Theme.text)
-            Text(model.scanProgressFraction == nil
-                 ? "Reading through your folders. Nothing is being changed or deleted."
-                 : "Sorting what I found. Nothing is being changed or deleted.")
-                .font(Theme.body(15)).lineSpacing(5).foregroundStyle(Theme.text2)
+        VStack(alignment: .leading, spacing: Self.sectionSpacing) {
+            VStack(alignment: .leading, spacing: Self.withinSection) {
+                Text("Having a look…")
+                    .font(Theme.display(28)).foregroundStyle(Theme.text)
+                Text(model.scanProgressFraction == nil
+                     ? "Reading through your folders. Nothing is being changed or deleted."
+                     : "Sorting what I found. Nothing is being changed or deleted.")
+                    .font(Theme.body(15)).lineSpacing(5).foregroundStyle(Theme.text2)
+            }
             ScanProgressLine(fraction: model.scanProgressFraction,
                              isStalled: model.scanEngine.stall != nil)
-                .padding(.top, 6)
         }
     }
 
@@ -246,26 +261,76 @@ struct OnboardingSheet: View {
     private var found: some View {
         let bytes = model.totalReclaimableBytes
         let biggest = model.topConsumers.first
-        return VStack(alignment: .leading, spacing: 12) {
-            if bytes > 0 {
-                Text("\(ByteFormat.compact(bytes)) you can get back")
-                    .font(Theme.display(28)).foregroundStyle(Theme.text)
-                Text(revealBody(biggest: biggest))
-                    .font(Theme.body(15)).lineSpacing(5).foregroundStyle(Theme.text2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 520, alignment: .leading)
-            } else {
-                Text("Nothing worth deleting")
-                    .font(Theme.display(28)).foregroundStyle(Theme.text)
-                Text("I went through your home folder and found nothing I'd advise removing. "
-                     + "That's a good result — I'll keep watching, and say so when that changes.")
-                    .font(Theme.body(15)).lineSpacing(5).foregroundStyle(Theme.text2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: 520, alignment: .leading)
+        return VStack(alignment: .leading, spacing: Self.sectionSpacing) {
+            VStack(alignment: .leading, spacing: Self.withinSection) {
+                if bytes > 0 {
+                    Text("\(ByteFormat.compact(bytes)) you can get back")
+                        .font(Theme.display(28)).foregroundStyle(Theme.text)
+                    Text(revealBody(biggest: biggest))
+                        .font(Theme.body(15)).lineSpacing(5).foregroundStyle(Theme.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 520, alignment: .leading)
+                } else {
+                    Text("Nothing worth deleting")
+                        .font(Theme.display(28)).foregroundStyle(Theme.text)
+                    Text("I went through your home folder and found nothing I'd advise removing. "
+                         + "That's a good result — I'll keep watching, and say so when that changes.")
+                        .font(Theme.body(15)).lineSpacing(5).foregroundStyle(Theme.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 520, alignment: .leading)
+                }
             }
 
-            loginItemOffer.padding(.top, 6)
+            proMoment
+            loginItemOffer
         }
+    }
+
+    /// The Pro moment — after the gotcha, never before it.
+    ///
+    /// The user has just watched DiskDrama find real space on their own disk, so
+    /// they own something; before that there was nothing to lose and nothing to
+    /// value. It is one card presenting the existing purchase surface, not a new
+    /// commerce UI grown inside the funnel.
+    ///
+    /// It doubles as the pre-paywall reassurance screen, which is the cheapest
+    /// structural win the paywall skill names: stating now what happens on day
+    /// ten turns the eventual paywall from an ambush into the thing that was
+    /// always going to happen. The date is real — a countdown to a genuine
+    /// deadline is loss framing, a countdown to an invented one is a dark
+    /// pattern, and the difference is the whole of the house rule.
+    ///
+    /// Never shown to someone who has already bought it.
+    @ViewBuilder
+    private var proMoment: some View {
+        if case .licensed = model.entitlement.status {
+            EmptyView()
+        } else {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Your ten days start now")
+                        .font(Theme.ui(13.5, weight: .semibold)).foregroundStyle(Theme.text)
+                    Text("Everything works — nothing is limited, nothing is watermarked, and there's no card and no account. "
+                         + "On \(Self.dayMonth(model.entitlement.trialEndsAt)) DiskDrama goes read-only: it keeps showing you "
+                         + "what's reclaimable and stops being able to clean it up.")
+                        .font(Theme.body(12.5)).lineSpacing(3).foregroundStyle(Theme.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Button("What Pro costs") { model.activeSheet = .paywall(.userInitiated) }
+                    .buttonStyle(GhostButtonStyle(height: 28, horizontalPadding: 12, fontSize: 12.5))
+            }
+            .padding(.horizontal, 18).padding(.vertical, 14)
+            .background(Theme.panel, in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .stroke(Theme.hairline, lineWidth: 1))
+        }
+    }
+
+    private static func dayMonth(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d MMMM"
+        return formatter.string(from: date)
     }
 
     /// The user's own numbers, so the copy does not have to strain.
