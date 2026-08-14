@@ -46,6 +46,7 @@ struct OnboardingSheet: View {
     /// making "Start using DiskDrama" look like it opened the shop. Exactly the
     /// two-presentations-on-one-view trap the onboarding skill records.
     @State private var showPurchase = false
+    @State private var pricing = PricingService.shared
     /// Polls while the sheet is open so the grant is noticed the moment it
     /// happens — "I'll notice the moment you grant it" has to be true.
     @State private var pollTimer: Timer?
@@ -324,14 +325,12 @@ struct OnboardingSheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Your ten days start now")
                         .font(Theme.ui(13.5, weight: .semibold)).foregroundStyle(Theme.text)
-                    Text("Everything works — nothing is limited, nothing is watermarked, and there's no card and no account. "
-                         + "On \(Self.dayMonth(model.entitlement.trialEndsAt)) DiskDrama goes read-only: it keeps showing you "
-                         + "what's reclaimable and stops being able to clean it up.")
+                    Text(trialCardBody)
                         .font(Theme.body(12.5)).lineSpacing(3).foregroundStyle(Theme.text2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
-                Button("See the price") { showPurchase = true }
+                Button(pricing.displayPrice.map { "Buy — \($0) once" } ?? "See the price") { showPurchase = true }
                     .buttonStyle(GhostButtonStyle(height: 28, horizontalPadding: 12, fontSize: 12.5))
             }
             .padding(.horizontal, 18).padding(.vertical, 14)
@@ -339,6 +338,23 @@ struct OnboardingSheet: View {
             .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous)
                 .stroke(Theme.hairline, lineWidth: 1))
         }
+    }
+
+    /// States the price here when it is known, so the card is an offer rather
+    /// than a signpost to one — and so the button can say what it does instead
+    /// of pointing at a screen that says the same thing again.
+    ///
+    /// The figure is whatever the backend says right now. When the lookup can't
+    /// answer, the sentence simply omits it: no compiled fallback, because a
+    /// stale number is worse than an absent one.
+    private var trialCardBody: String {
+        var text = "Everything works — nothing is limited, nothing is watermarked, and there's no card and no account. "
+        text += "On \(Self.dayMonth(model.entitlement.trialEndsAt)) DiskDrama goes read-only: it keeps showing you "
+        text += "what's reclaimable and stops being able to clean it up."
+        if let price = pricing.displayPrice {
+            text += " Keeping it is \(price), once."
+        }
+        return text
     }
 
     private static func dayMonth(_ date: Date) -> String {
@@ -531,6 +547,9 @@ struct OnboardingSheet: View {
                     Settings.shared.onboardingStep = step
                     if step == 3 && !startedScan {
                         startedScan = true
+                        // Asked while the scan runs, so the reveal already has a
+                        // figure rather than fetching one as it appears.
+                        pricing.refresh()
                         onScan()
                     }
                 } else {

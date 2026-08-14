@@ -238,7 +238,7 @@ struct PaywallSheet: View {
     /// costs; the real figure is on the checkout page a click later, and an
     /// absent number is far cheaper than a wrong one.
     private var buyLabel: String {
-        pricing.displayPrice.map { "Buy DiskDrama — \($0) once" } ?? "See the price and buy"
+        pricing.displayPrice.map { "Buy DiskDrama — \($0) once" } ?? "Continue to checkout"
     }
 
     private var trustLine: String {
