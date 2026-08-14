@@ -184,6 +184,16 @@ final class AppModel {
         destructiveBlockReason ?? entitlement.blockReason
     }
 
+    /// Silences the trial reminder for this launch only.
+    ///
+    /// Not persisted: the deadline moves every day and the last day genuinely
+    /// differs from the third-to-last, so the notice earns one appearance per
+    /// launch. Persisting it would let a user silence the only warning they get
+    /// and then be surprised — which is the failure the notice exists to prevent.
+    private(set) var hasDismissedTrialNotice = false
+
+    func dismissTrialNoticeForNow() { hasDismissedTrialNotice = true }
+
     /// Opens the paywall for a specific denied action, naming it.
     func presentPaywall(blocking action: String) {
         activeSheet = .paywall(.blockedAction(action))

@@ -33,7 +33,8 @@ struct ResultsNotices: View {
     /// bought is the fastest way to make a customer feel unseen.
     @ViewBuilder
     private var trialBanner: some View {
-        if model.entitlement.isTrialEndingSoon, case .trial(let days) = model.entitlement.status {
+        if model.entitlement.isTrialEndingSoon, !model.hasDismissedTrialNotice,
+           case .trial(let days) = model.entitlement.status {
             HStack(spacing: 11) {
                 Image(systemName: "clock")
                     .font(.system(size: 14)).foregroundStyle(Theme.accent)
@@ -45,6 +46,12 @@ struct ResultsNotices: View {
                 Spacer(minLength: 8)
                 Button("See the price") { model.activeSheet = .paywall(.userInitiated) }
                     .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
+                // Dismissable, because a reminder you cannot silence is a nag,
+                // and the house rule against those is not negotiable. Session-
+                // scoped rather than permanent: the deadline is real and moving,
+                // so it earns one mention per launch and no more.
+                Button("Dismiss") { model.dismissTrialNoticeForNow() }
+                    .buttonStyle(QuietButtonStyle(height: 24, fontSize: 12))
             }
             .padding(.horizontal, 26).padding(.vertical, 10)
             .background(Theme.panel)

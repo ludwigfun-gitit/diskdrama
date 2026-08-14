@@ -41,6 +41,7 @@ struct SettingsSheet: View {
                     presentationSection
                     explanationsSection
                     scanRootsSection
+                    licenceSection
                     startupSection
                     exclusionsSection
                     hiddenBlindSpotsSection
@@ -354,6 +355,47 @@ struct SettingsSheet: View {
                 scanRoots.append(path)
                 Settings.shared.scanRoots = scanRoots
             }
+        }
+    }
+
+    /// The always-available purchase and activation surface.
+    ///
+    /// Without this the only ways to buy were a banner in the trial's last three
+    /// days and a blocked Delete — so someone who decided on day two had nowhere
+    /// to go, and someone who already had a key had nowhere to enter it. A
+    /// purchase path that only appears when the app decides to sell is a worse
+    /// version of nagging: it is unavailable at exactly the moment the user is
+    /// most willing.
+    ///
+    /// Restore is beside it and always visible, which is the answer to the most
+    /// common support email any licensed app gets.
+    private var licenceSection: some View {
+        Section(title: "Licence",
+                blurb: licenceBlurb) {
+            HStack(spacing: 9) {
+                switch model.entitlement.status {
+                case .licensed:
+                    Button("Deactivate on this Mac") { model.licence.deactivate() }
+                        .buttonStyle(GhostButtonStyle(height: 28, horizontalPadding: 12, fontSize: 12.5))
+                default:
+                    Button("See what it costs") { model.activeSheet = .paywall(.userInitiated) }
+                        .buttonStyle(AccentButtonStyle(height: 28, horizontalPadding: 13, fontSize: 12.5))
+                    Button("I already have a key") { model.activeSheet = .activate }
+                        .buttonStyle(GhostButtonStyle(height: 28, horizontalPadding: 12, fontSize: 12.5))
+                }
+                Spacer()
+            }
+        }
+    }
+
+    private var licenceBlurb: String {
+        switch model.entitlement.status {
+        case .licensed:
+            "Activated. One payment, no expiry — nothing to renew and nothing to cancel."
+        case .trial(let days):
+            "\(days) day\(days == 1 ? "" : "s") left of the trial. Everything works until then; after that DiskDrama keeps showing you what's reclaimable but can't act on it."
+        case .trialExpired:
+            "The trial has ended. DiskDrama still scans and still explains — buying it lets it act on what it finds again."
         }
     }
 
