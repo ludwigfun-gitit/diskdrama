@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// DiskDrama Pro.
+/// Buying DiskDrama.
 ///
 /// **Path B** — one-time purchase, desktop utility. Most published paywall
 /// advice assumes a consumer subscription app: plan ladders, weekly framing,
@@ -37,6 +37,9 @@ struct PaywallSheet: View {
     @Bindable var model: AppModel
     let reason: Reason
     let onActivate: () -> Void
+    /// Supplied when the sheet is presented from another sheet, which cannot
+    /// dismiss itself through `model.activeSheet`.
+    var onClose: (() -> Void)? = nil
 
     @State private var pricing = PricingService.shared
 
@@ -100,9 +103,9 @@ struct PaywallSheet: View {
                 ? "\(reclaimable) is still sitting there"
                 : "Your trial has ended"
         case .blockedAction:
-            "That one needs Pro"
+            "That one needs a licence"
         case .userInitiated:
-            "DiskDrama Pro"
+            "Buying DiskDrama"
         }
     }
 
@@ -111,7 +114,7 @@ struct PaywallSheet: View {
         case .trialEnded:
             "Your ten days are up. DiskDrama keeps showing you what's reclaimable and why — it just can't clean it up for you any more."
         case .blockedAction(let what):
-            "\(what) needs Pro. Everything DiskDrama has already found stays visible either way."
+            "\(what) needs a licence. Everything DiskDrama has already found stays visible either way."
         case .userInitiated:
             "One payment. No subscription, no account, no renewal."
         }
@@ -127,13 +130,13 @@ struct PaywallSheet: View {
     /// worth more than any bullet about tiers or classification.
     private var whatYouKeep: some View {
         HStack(alignment: .top, spacing: 18) {
-            column(title: "Stays free, always",
+            column(title: "Works forever, free",
                    tint: Theme.text3,
                    items: ["Scanning, and every result",
                            "Why each thing is safe or isn't",
                            "History, watches and blind spots",
                            "What your cloud storage really costs"])
-            column(title: "What Pro does",
+            column(title: "Needs a licence",
                    tint: Theme.accent,
                    items: ["Delete what you've approved",
                            "Clean a whole tier in one go",
@@ -206,7 +209,7 @@ struct PaywallSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 if let exit = exitLabel {
-                    Button(exit) { model.activeSheet = nil }
+                    Button(exit) { close() }
                         .buttonStyle(QuietButtonStyle(height: 32))
                 }
                 Button("I already have a key") { onActivate() }
@@ -235,7 +238,7 @@ struct PaywallSheet: View {
     /// costs; the real figure is on the checkout page a click later, and an
     /// absent number is far cheaper than a wrong one.
     private var buyLabel: String {
-        pricing.displayPrice.map { "Buy DiskDrama Pro — \($0) once" } ?? "See the price and buy"
+        pricing.displayPrice.map { "Buy DiskDrama — \($0) once" } ?? "See the price and buy"
     }
 
     private var trustLine: String {
@@ -247,6 +250,10 @@ struct PaywallSheet: View {
     /// The escape hatch is part of the persuasion surface, and stating the cost
     /// of declining is the skill's own correction to a frictionless "Maybe
     /// later". It still genuinely dismisses — never-trap-the-user holds.
+    private func close() {
+        if let onClose { onClose() } else { model.activeSheet = nil }
+    }
+
     private var exitLabel: String? {
         switch reason {
         case .userInitiated:  "Not now"

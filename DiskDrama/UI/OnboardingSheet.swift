@@ -37,6 +37,15 @@ struct OnboardingSheet: View {
     @State private var lowThresholdGB = Self.nearestOffered(Settings.shared.lowThresholdBytes)
     /// Set when the scan is kicked off, so the reveal step starts it exactly once.
     @State private var startedScan = false
+    /// Presented from *this* sheet, not by setting `model.activeSheet`.
+    ///
+    /// Onboarding is itself a sheet on the main window, and a view can only
+    /// present one sheet at a time. Setting `activeSheet` from inside it queued
+    /// a second presentation on the same host, so the button appeared dead —
+    /// and then the paywall ambushed the user the instant onboarding closed,
+    /// making "Start using DiskDrama" look like it opened the shop. Exactly the
+    /// two-presentations-on-one-view trap the onboarding skill records.
+    @State private var showPurchase = false
     /// Polls while the sheet is open so the grant is noticed the moment it
     /// happens — "I'll notice the moment you grant it" has to be true.
     @State private var pollTimer: Timer?
@@ -62,6 +71,11 @@ struct OnboardingSheet: View {
         .padding(.vertical, 38)
         .frame(width: 700, height: 520)
         .background(Theme.content)
+        .sheet(isPresented: $showPurchase) {
+            PaywallSheet(model: model, reason: .userInitiated,
+                         onActivate: { showPurchase = false; model.activeSheet = .activate },
+                         onClose: { showPurchase = false })
+        }
         .onAppear(perform: startPolling)
         .onDisappear { pollTimer?.invalidate() }
     }
@@ -317,7 +331,7 @@ struct OnboardingSheet: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
-                Button("What Pro costs") { model.activeSheet = .paywall(.userInitiated) }
+                Button("See the price") { showPurchase = true }
                     .buttonStyle(GhostButtonStyle(height: 28, horizontalPadding: 12, fontSize: 12.5))
             }
             .padding(.horizontal, 18).padding(.vertical, 14)

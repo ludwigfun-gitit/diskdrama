@@ -96,7 +96,7 @@ final class Entitlement {
     /// same reason: a disabled control that will not say why is the thing users
     /// report as broken.
     var blockReason: String? {
-        isActive ? nil : "Your trial has ended. DiskDrama can still show you what's reclaimable — buying Pro lets it act on it."
+        isActive ? nil : "Your trial has ended. DiskDrama can still show you what's reclaimable — buying it lets it act on that again."
     }
 
     /// True for the last stretch of the trial, when a reminder is fair rather

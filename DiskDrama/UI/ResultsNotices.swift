@@ -43,7 +43,7 @@ struct ResultsNotices: View {
                     .font(Theme.body(12.5)).foregroundStyle(Theme.text2)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                Button("See DiskDrama Pro") { model.activeSheet = .paywall(.userInitiated) }
+                Button("See the price") { model.activeSheet = .paywall(.userInitiated) }
                     .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
             }
             .padding(.horizontal, 26).padding(.vertical, 10)
@@ -53,13 +53,13 @@ struct ResultsNotices: View {
             HStack(spacing: 11) {
                 Image(systemName: "lock")
                     .font(.system(size: 14)).foregroundStyle(Theme.text3)
-                Text("Read-only. Everything DiskDrama found is still here — Pro is what lets it act on any of it.")
+                Text("Read-only. Everything DiskDrama found is still here — a licence is what lets it act on any of it.")
                     .font(Theme.body(12.5)).foregroundStyle(Theme.text2)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
                 Button("I have a key") { model.activeSheet = .activate }
                     .buttonStyle(QuietButtonStyle(height: 24, fontSize: 12))
-                Button("See DiskDrama Pro") { model.activeSheet = .paywall(.trialEnded) }
+                Button("See the price") { model.activeSheet = .paywall(.trialEnded) }
                     .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
             }
             .padding(.horizontal, 26).padding(.vertical, 10)
