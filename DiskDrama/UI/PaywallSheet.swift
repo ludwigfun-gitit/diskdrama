@@ -24,7 +24,9 @@ import SwiftUI
 /// different opening lines, and only one of them can be dismissed.
 struct PaywallSheet: View {
 
-    enum Reason: Equatable {
+    enum Reason: Equatable, Identifiable {
+        var id: String { String(describing: self) }
+
         /// The user opened it — from the trial banner, Settings, or curiosity.
         case userInitiated
         /// The trial is over. Not dismissable to nothing: the app behind it is

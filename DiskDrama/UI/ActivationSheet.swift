@@ -13,6 +13,9 @@ import SwiftUI
 struct ActivationSheet: View {
 
     @Bindable var model: AppModel
+    /// Supplied when presented from another sheet, which cannot dismiss itself
+    /// through shared model state.
+    var onClose: (() -> Void)? = nil
 
     @State private var email = ""
     @State private var key = ""
@@ -86,7 +89,7 @@ struct ActivationSheet: View {
 
     private var footer: some View {
         HStack(spacing: 9) {
-            Button("Cancel") { model.activeSheet = nil }
+            Button("Cancel") { close() }
                 .buttonStyle(QuietButtonStyle(height: 32))
                 .disabled(busy)
             Spacer(minLength: 8)
@@ -131,12 +134,18 @@ struct ActivationSheet: View {
                 if stage == .credentials {
                     stage = .code
                 } else {
-                    model.activeSheet = nil
+                    close()
                 }
             case .failed(let message):
                 problem = message
             }
         }
+    }
+}
+
+extension ActivationSheet {
+    func close() {
+        if let onClose { onClose() } else { model.activeSheet = nil }
     }
 }
 

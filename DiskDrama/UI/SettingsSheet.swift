@@ -31,31 +31,95 @@ struct SettingsSheet: View {
     /// about it, is how a settings pane loses trust.
     @State private var clampNote: String?
 
+    /// Which pane is showing. Persisted for the session only — reopening
+    /// Settings in the pane you last used is helpful; remembering it across
+    /// launches means the app opens somewhere you have forgotten choosing.
+    @State private var tab: Tab = .general
+    /// Presented by this sheet, not through `model.activeSheet`.
+    ///
+    /// Settings is itself a sheet on the main window, so assigning `activeSheet`
+    /// from inside it queued a second presentation on the same host and the Buy
+    /// button did nothing — the identical mistake the onboarding card made, in a
+    /// second place, because the fix there was applied to the symptom instead of
+    /// to every caller that shares the cause.
+    @State private var purchase: PaywallSheet.Reason?
+    @State private var showActivation = false
+
+    private enum Tab: String {
+        case general, scanning, cleaning, explanations, licence
+    }
+
+    /// Tabs rather than one long scroll.
+    ///
+    /// Eleven sections in a single column meant everything after the fourth was
+    /// found by scrolling past things you were not looking for, and the licence
+    /// drowned in the middle of it. Visuals solves this with a top-level tab per
+    /// area and a `License` tab of its own; this follows that, which also makes
+    /// the sheet behave like every other macOS preferences window.
+    ///
+    /// Grouped by what you are trying to do, not by which feature shipped when:
+    /// warnings and appearance are General, everything about where to look is
+    /// Scanning, everything about removing things is Cleaning.
     var body: some View {
         VStack(spacing: 0) {
             header
-            licenceBand
-            Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 26) {
-                    thresholdsSection
-                    presentationSection
-                    explanationsSection
-                    scanRootsSection
-                    startupSection
-                    exclusionsSection
-                    hiddenBlindSpotsSection
-                    undeletableSection
-                    ignoredSection
-                    deletionSection
-                }
-                .padding(24)
+            // No rule above the tabs and none below them: the tab strip already
+            // reads as a divide, and `TabView` draws its own hairline along the
+            // top of the content pane. Adding ours put two lines a few points
+            // apart and a third doubled onto the pane's own border.
+            TabView(selection: $tab) {
+                pane { thresholdsSection; presentationSection; startupSection }
+                    .tabItem { Label("General", systemImage: "gearshape") }
+                    .tag(Tab.general)
+
+                pane { scanRootsSection; exclusionsSection; hiddenBlindSpotsSection }
+                    .tabItem { Label("Scanning", systemImage: "magnifyingglass") }
+                    .tag(Tab.scanning)
+
+                pane { deletionSection; ignoredSection; undeletableSection }
+                    .tabItem { Label("Cleaning", systemImage: "trash") }
+                    .tag(Tab.cleaning)
+
+                pane { explanationsSection }
+                    .tabItem { Label("AI Guidance", systemImage: "sparkles") }
+                    .tag(Tab.explanations)
+
+                pane { licencePane }
+                    .tabItem { Label("Licence", systemImage: "key") }
+                    .tag(Tab.licence)
             }
-            Divider()
+            .padding(.top, 10)
             footer
         }
-        .frame(width: 560, height: 620)
+        .frame(width: 580, height: 640)
         .background(Theme.panel)
+        // Focus rings off across the whole sheet, not tab by tab.
+        //
+        // The selected tab drew a heavy blue halo the moment the sheet opened,
+        // which read as an error state rather than as "this is where you are" —
+        // the tab is already filled and tinted, so the ring said nothing the
+        // selection did not. Disabling it once here means no control added later
+        // can reintroduce it, which is how it came back the last time.
+        .focusEffectDisabled()
+        .sheet(item: $purchase) { reason in
+            PaywallSheet(model: model, reason: reason,
+                         onActivate: { purchase = nil; showActivation = true },
+                         onClose: { purchase = nil })
+        }
+        .sheet(isPresented: $showActivation) {
+            ActivationSheet(model: model, onClose: { showActivation = false })
+        }
+    }
+
+    /// One tab's worth of sections, scrolling if they outgrow the pane.
+    private func pane<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 26) {
+                content()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(24)
+        }
     }
 
     private var header: some View {
@@ -88,8 +152,7 @@ struct SettingsSheet: View {
 
     private var thresholdsSection: some View {
         Section(title: "When to warn you",
-                blurb: "The menubar icon takes on a colour as free space drops — amber at the "
-                     + "first level, red at the second. Both are in gigabytes.") {
+                blurb: "The menubar icon takes on a colour as free space drops.") {
             VStack(spacing: 0) {
                 thresholdRow("Warn below", dot: .orange, text: $lowGB, commit: commitLow)
                 Rectangle().fill(Theme.hairline).frame(height: 1)
@@ -232,10 +295,10 @@ struct SettingsSheet: View {
     }
 
     private var explanationsSection: some View {
-        Section(title: "Deeper explanations",
-                blurb: "DiskDrama tiers everything on its own, offline and free. For a closer look at "
-                     + "whichever item you've selected it can also ask a model — Apple's on-device one "
-                     + "when this Mac can run it, otherwise Claude, if you've saved a key.") {
+        Section(title: "AI guidance",
+                blurb: "Tiering is done on this Mac, offline and free. A model can add detail on the "
+                     + "item you've selected — Apple's on-device one where available, otherwise "
+                     + "Claude with a key.") {
             sourceStatus
             SecureField(hasStoredKey ? "A key is saved — paste a new one to replace it" : "sk-ant-…",
                         text: $apiKey)
@@ -358,52 +421,59 @@ struct SettingsSheet: View {
         }
     }
 
-    /// The licence, pinned above the settings rather than filed among them.
+    /// The licence, with a tab of its own.
     ///
     /// It was the fifth of eleven sections in one long scroll, which is where it
-    /// drowned. Visuals gives its licence a top-level tab; this goes one further
-    /// and pins it, because the licence is *status* rather than a preference —
-    /// nothing here is a knob you set, it is the app telling you where you stand
-    /// and offering the two things you might want to do about it. A tab would
-    /// still make that a click away.
+    /// drowned — found only by scrolling past four things you were not looking
+    /// for. Visuals gives its licence a top-level tab and this does the same, so
+    /// it is one click from anywhere and impossible to miss.
     ///
-    /// Always present, on every day of the trial and after it. A purchase path
-    /// that appears only when the app decides to sell is unavailable at exactly
-    /// the moment the user is most willing.
-    private var licenceBand: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: licenceSymbol)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(licenceTint)
-                .frame(width: 30, height: 30)
-                .background(licenceTint.opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(licenceTitle)
-                    .font(Theme.ui(13.5, weight: .semibold))
-                    .foregroundStyle(Theme.text)
-                Text(licenceBlurb)
-                    .font(Theme.body(12))
-                    .foregroundStyle(Theme.text3)
-                    .fixedSize(horizontal: false, vertical: true)
+    /// Reachable on every day of the trial and after it. A purchase path that
+    /// appears only when the app decides to sell is unavailable at exactly the
+    /// moment the user is most willing.
+    private var licencePane: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .center, spacing: 13) {
+                Image(systemName: licenceSymbol)
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(licenceTint)
+                    .frame(width: 38, height: 38)
+                    .background(licenceTint.opacity(0.12),
+                                in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(licenceTitle)
+                        .font(Theme.display(17))
+                        .foregroundStyle(Theme.text)
+                    Text(licenceBlurb)
+                        .font(Theme.body(12.5))
+                        .lineSpacing(3)
+                        .foregroundStyle(Theme.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
             }
-
-            Spacer(minLength: 10)
 
             switch model.entitlement.status {
             case .licensed:
-                Button("Deactivate") { model.licence.deactivate() }
-                    .buttonStyle(QuietButtonStyle(height: 28, fontSize: 12.5))
+                Button("Deactivate on this Mac") { model.licence.deactivate() }
+                    .buttonStyle(GhostButtonStyle(height: 30, horizontalPadding: 13, fontSize: 13))
             default:
-                Button("I have a key") { model.activeSheet = .activate }
-                    .buttonStyle(GhostButtonStyle(height: 28, horizontalPadding: 12, fontSize: 12.5))
-                Button(buyLabel) { model.activeSheet = .paywall(.userInitiated) }
-                    .buttonStyle(AccentButtonStyle(height: 28, horizontalPadding: 13, fontSize: 12.5))
+                HStack(spacing: 9) {
+                    Button(buyLabel) { purchase = .userInitiated }
+                        .buttonStyle(AccentButtonStyle(height: 30, horizontalPadding: 15, fontSize: 13))
+                    Button("I already have a key") { showActivation = true }
+                        .buttonStyle(GhostButtonStyle(height: 30, horizontalPadding: 13, fontSize: 13))
+                    Spacer(minLength: 0)
+                }
             }
+
+            Text("One payment, no account, and nothing about your files ever leaves this Mac. "
+                 + "The licence works on any Mac you use — activate it again with the key from your email.")
+                .font(Theme.body(12))
+                .lineSpacing(3)
+                .foregroundStyle(Theme.text3)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 16)
     }
 
     /// A call to action, not a description of one.
@@ -451,10 +521,7 @@ struct SettingsSheet: View {
     }
 
     private var startupSection: some View {
-        Section(title: "Starting up",
-                blurb: "DiskDrama watches free space from the menu bar. It can't warn you about a "
-                     + "disk filling up if it isn't running, and a disk fills up precisely when "
-                     + "nobody is thinking about cleanup tools.") {
+        Section(title: "Starting up", blurb: nil) {
             Toggle("Start DiskDrama when I log in", isOn: Binding(
                 get: { startAtLogin },
                 set: { wanted in
@@ -477,12 +544,9 @@ struct SettingsSheet: View {
 
     private var exclusionsSection: some View {
         Section(title: "Never look here",
-                blurb: "Skipped entirely — not scanned, not counted, not recommended. Their sizes "
-                     + "are unknown by design; DiskDrama can't report on a folder it never opens. "
-                     + "iCloud Drive and other cloud-synced storage are excluded from the start, "
-                     + "because opening a file that hasn't finished downloading to this Mac can "
-                     + "stall a scan for minutes. Remove either one below if you'd rather "
-                     + "DiskDrama looked there too.") {
+                blurb: "Skipped entirely — not scanned, not counted, never recommended. "
+                     + "Cloud storage starts here because opening a file that hasn't finished "
+                     + "downloading can stall a scan for minutes.") {
             PathList(paths: exclusions, emptyNote: "Nothing excluded.") { path in
                 model.unexclude(path: path)
                 exclusions = Settings.shared.exclusions
@@ -496,11 +560,8 @@ struct SettingsSheet: View {
 
     private var hiddenBlindSpotsSection: some View {
         Section(title: "Stopped listing these",
-                blurb: "Locations DiskDrama couldn't read and you've asked it to stop listing. "
-                     + "Unlike the two lists below, this changes nothing about the scan — there "
-                     + "was nothing readable to scan. They're still missing from every total, and "
-                     + "the Not scanned pane still says how many; this only stops them being "
-                     + "named every time.") {
+                blurb: "Unreadable locations you've asked DiskDrama to stop naming. They're "
+                     + "still missing from every total — the Not scanned pane still counts them.") {
             if model.hiddenBlindSpotPaths.isEmpty {
                 Text("Nothing hidden.").settingsCaption()
             } else {
@@ -513,11 +574,8 @@ struct SettingsSheet: View {
 
     private var undeletableSection: some View {
         Section(title: "macOS wouldn't let these go",
-                blurb: "Folders DiskDrama tried to delete and the system refused. They're moved out "
-                     + "of Safe to delete and shown without a delete button, so the same dead control "
-                     + "isn't offered after every scan. Remove one from this list to have DiskDrama "
-                     + "try again — worth doing after a macOS update, which is the sort of thing that "
-                     + "changes the answer.") {
+                blurb: "Deletions the system refused. Remove one to let DiskDrama try again — "
+                     + "worth doing after a macOS update.") {
             if model.undeletablePaths.isEmpty {
                 Text("Nothing refused.").settingsCaption()
             } else {
@@ -531,7 +589,7 @@ struct SettingsSheet: View {
     private var ignoredSection: some View {
         Section(title: "Never suggest these",
                 blurb: "Still scanned and still counted toward your totals — DiskDrama just "
-                     + "stops offering them. That's the difference from the list above.") {
+                     + "stops offering them.") {
             if model.ignoredPaths.isEmpty {
                 Text("Nothing dismissed.").settingsCaption()
             } else {
@@ -544,8 +602,7 @@ struct SettingsSheet: View {
 
     private var deletionSection: some View {
         Section(title: "When you delete something",
-                blurb: "Whichever you pick here is only the starting position — every "
-                     + "confirmation still lets you change it for that one job.") {
+                blurb: "Default selection in cleaning dialogs.") {
             Picker("", selection: $deleteMode) {
                 Text("Move it to the Trash").tag(DeletionMode.trash)
                 Text("Remove it immediately").tag(DeletionMode.immediate)
@@ -566,18 +623,23 @@ struct SettingsSheet: View {
 
 private struct Section<Content: View>: View {
     let title: String
-    let blurb: String
+    /// Optional: a section whose title already says everything needs no
+    /// paragraph under it, and an explanatory sentence that explains nothing is
+    /// just something else to read past.
+    let blurb: String?
     @ViewBuilder var content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 5) {
                 Text(title).font(Theme.ui(14, weight: .semibold)).foregroundStyle(Theme.text)
-                Text(blurb)
-                    .font(Theme.body(12.5))
-                    .lineSpacing(3)
-                    .foregroundStyle(Theme.text2)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let blurb {
+                    Text(blurb)
+                        .font(Theme.body(12.5))
+                        .lineSpacing(3)
+                        .foregroundStyle(Theme.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             content
         }
