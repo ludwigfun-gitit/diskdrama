@@ -28,6 +28,10 @@ final class MenubarController {
     private var lastRenderedInfo: DiskInfo?
 
     private var headlineItem: NSMenuItem?
+    private var headlineLabel: MenuLabelView?
+    private var checkedLabel: MenuLabelView?
+    private var reclaimableLabel: MenuLabelView?
+    private var reclaimableDetailLabel: MenuLabelView?
     private var capacityItem: NSMenuItem?
     private var checkedItem: NSMenuItem?
     private var reclaimableItem: NSMenuItem?
@@ -93,9 +97,10 @@ final class MenubarController {
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
 
-        headlineItem = caption("")
-        headlineItem?.attributedTitle = NSAttributedString(string: "—")
-        menu.addItem(headlineItem!)
+        let (headline, headlineView) = labelItem(height: 28)
+        headlineItem = headline
+        headlineLabel = headlineView
+        menu.addItem(headline)
 
         capacityItem = caption("")
         let bar = CapacityBarView(frame: NSRect(x: 0, y: 0, width: 220, height: 16))
@@ -106,17 +111,23 @@ final class MenubarController {
         capacityItem?.isEnabled = false
         menu.addItem(capacityItem!)
 
-        checkedItem = caption("")
-        menu.addItem(checkedItem!)
+        let (checked, checkedView) = labelItem(height: 16)
+        checkedItem = checked
+        checkedLabel = checkedView
+        menu.addItem(checked)
 
         menu.addItem(.separator())
 
         // The reclaimable line is the whole reason this dropdown is more than a
         // gauge — it is the advisor speaking from the ambient surface.
-        reclaimableItem = caption("")
-        menu.addItem(reclaimableItem!)
-        reclaimableDetailItem = caption("")
-        menu.addItem(reclaimableDetailItem!)
+        let (reclaimable, reclaimableView) = labelItem(height: 19)
+        reclaimableItem = reclaimable
+        reclaimableLabel = reclaimableView
+        menu.addItem(reclaimable)
+        let (detail, detailView) = labelItem(height: 16)
+        reclaimableDetailItem = detail
+        reclaimableDetailLabel = detailView
+        menu.addItem(detail)
 
         menu.addItem(.separator())
         menu.addItem(action("Open DiskDrama", #selector(openWindow), key: "o"))
@@ -237,6 +248,63 @@ final class MenubarController {
     /// A menu item with a `view` is laid out at the menu's own content width, so
     /// the question stops needing an answer. Insets match the menu's text margin
     /// so the bar lines up with the sentences above and below it.
+    /// A caption drawn by us rather than by the menu.
+    ///
+    /// The rows were disabled `NSMenuItem`s carrying attributed titles. An
+    /// earlier note in this file concluded that an attributed colour survives
+    /// being disabled — that was true when it was written and is not true now:
+    /// AppKit dims a disabled item's whole title, so the accent line was being
+    /// washed out no matter what colour it asked for, and the greys were dimmed
+    /// twice over.
+    ///
+    /// `CapacityBarView` right below already had the answer. A view-bearing item
+    /// is never dimmed, and refusing hits keeps the pointer highlight off a row
+    /// that states something rather than doing something. Same trick, now for
+    /// the text as well as the picture.
+    private final class MenuLabelView: NSView {
+        var attributed = NSAttributedString(string: "") {
+            didSet {
+                invalidateIntrinsicContentSize()
+                needsDisplay = true
+                // A view-bearing item has no title, so the text stops existing
+                // as far as VoiceOver is concerned. Drawing it ourselves means
+                // announcing it ourselves — the row still says something, and a
+                // caption nobody can hear is not a caption.
+                setAccessibilityLabel(attributed.string)
+            }
+        }
+
+        override func accessibilityRole() -> NSAccessibility.Role? { .staticText }
+        override func isAccessibilityElement() -> Bool { true }
+
+        /// Matches `CapacityBarView`, so captions and bar share one left edge.
+        private let inset: CGFloat = 14
+        private let verticalPadding: CGFloat = 2
+
+        override var intrinsicContentSize: NSSize {
+            NSSize(width: NSView.noIntrinsicMetric,
+                   height: ceil(attributed.size().height) + verticalPadding * 2)
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func draw(_ dirtyRect: NSRect) {
+            attributed.draw(in: NSRect(x: inset,
+                                       y: verticalPadding,
+                                       width: max(0, bounds.width - inset * 2),
+                                       height: bounds.height - verticalPadding * 2))
+        }
+    }
+
+    /// A caption row whose colours are its own.
+    private func labelItem(height: CGFloat) -> (NSMenuItem, MenuLabelView) {
+        let view = MenuLabelView(frame: NSRect(x: 0, y: 0, width: 220, height: height))
+        view.autoresizingMask = [.width]
+        let item = NSMenuItem()
+        item.view = view
+        return (item, view)
+    }
+
     private final class CapacityBarView: NSView {
         var fraction: Double = 0
         var colour: NSColor = .secondaryLabelColor
@@ -323,16 +391,18 @@ final class MenubarController {
         }
 
         lastRenderedInfo = info
-        headlineItem?.attributedTitle = headline(for: info)
+        headlineLabel?.attributed = headline(for: info)
         // The bar is now an image, so the row carries no text at all.
 
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         formatter.dateStyle = .none
-        checkedItem?.attributedTitle = NSAttributedString(
+        checkedLabel?.attributed = NSAttributedString(
             string: "\(ByteFormat.compact(info.usedBytes)) used · \(Int(info.usedFraction * 100))% · checked \(formatter.string(from: info.readAt))",
             attributes: [.font: NSFont.monospacedSystemFont(ofSize: 10.5, weight: .regular),
-                         .foregroundColor: NSColor.tertiaryLabelColor])
+                         // Was tertiary, and tertiary on a menu background is
+                         // genuinely hard to read. One step up.
+                         .foregroundColor: NSColor.secondaryLabelColor])
 
         renderReclaimable()
     }
@@ -347,11 +417,11 @@ final class MenubarController {
         }
         reclaimableItem?.isHidden = false
         reclaimableDetailItem?.isHidden = false
-        reclaimableItem?.attributedTitle = NSAttributedString(
+        reclaimableLabel?.attributed = NSAttributedString(
             string: "\(ByteFormat.compact(summary.bytes)) reclaimable",
             attributes: [.font: NSFont.systemFont(ofSize: 13, weight: .semibold),
                          .foregroundColor: NSColor.controlAccentColor])
-        reclaimableDetailItem?.attributedTitle = NSAttributedString(
+        reclaimableDetailLabel?.attributed = NSAttributedString(
             string: summary.detail,
             attributes: [.font: NSFont.systemFont(ofSize: 11),
                          .foregroundColor: NSColor.secondaryLabelColor])
@@ -372,7 +442,12 @@ final class MenubarController {
         bar.fraction = info.usedFraction
         bar.colour = info.availableBytes < settings.criticalThresholdBytes ? .systemRed
                    : info.availableBytes < settings.lowThresholdBytes      ? .systemOrange
-                   : .secondaryLabelColor
+                   // Accent while there is nothing wrong. The bar is the one
+                   // element that is always on screen in the menu, so leaving it
+                   // grey until something breaks wasted the app's own colour on
+                   // nothing — and grey-on-grey was the hardest thing here to
+                   // read. Orange and red still mean exactly what they meant.
+                   : .controlAccentColor
         bar.needsDisplay = true
     }
 
@@ -396,7 +471,9 @@ final class MenubarController {
     /// to catch the eye from across a screen, and the bar below, which is the
     /// picture of it. Nothing on this row competes with either.
     private func headline(for info: DiskInfo) -> NSAttributedString {
-        let grey = NSColor.disabledControlTextColor
+        // `disabledControlTextColor` is the faintest grey AppKit offers and it
+        // was being dimmed again by the disabled row. Secondary reads.
+        let grey = NSColor.secondaryLabelColor
         let text = NSMutableAttributedString(
             string: ByteFormat.compact(info.availableBytes),
             attributes: [.font: Self.displayFont, .foregroundColor: grey])
