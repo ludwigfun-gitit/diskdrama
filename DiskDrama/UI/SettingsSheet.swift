@@ -457,7 +457,10 @@ struct SettingsSheet: View {
     /// to put anything in.
     private var licencePane: some View {
         VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .center, spacing: 13) {
+            // Stacked under the icon rather than beside it, sharing its left
+            // edge — the blurb runs long enough that setting it in a column
+            // next to a 38pt badge left it wrapping in a narrow gutter.
+            VStack(alignment: .leading, spacing: 10) {
                 Image(systemName: licenceSymbol)
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(licenceTint)
@@ -474,7 +477,6 @@ struct SettingsSheet: View {
                         .foregroundStyle(Theme.text2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Spacer(minLength: 0)
             }
 
             if case .licensed = model.entitlement.status {
@@ -483,18 +485,21 @@ struct SettingsSheet: View {
             } else {
                 whatALicenceChanges
                 purchaseQuestions
-                HStack(spacing: 9) {
+                // The caveat is about checkout, so it sits beside the button it
+                // describes. Under both, it read as a note on the pair — and
+                // "opens in your browser" is untrue of entering a key you
+                // already have.
+                HStack(alignment: .center, spacing: 12) {
                     Button(buyLabel) { PurchaseLink.openCheckout() }
                         .buttonStyle(AccentButtonStyle(height: 30, horizontalPadding: 15, fontSize: 13))
-                    Button("I already have a key") { showActivation = true }
-                        .buttonStyle(GhostButtonStyle(height: 30, horizontalPadding: 13, fontSize: 13))
+                    Text("Opens in your browser. One payment, no account.")
+                        .font(Theme.body(11.5))
+                        .foregroundStyle(Theme.text3)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
-                Text("Opens in your browser. One payment, no account, and nothing about your files "
-                     + "ever leaves this Mac.")
-                    .font(Theme.body(11.5))
-                    .foregroundStyle(Theme.text3)
-                    .fixedSize(horizontal: false, vertical: true)
+                Button("I already have a key") { showActivation = true }
+                    .buttonStyle(GhostButtonStyle(height: 30, horizontalPadding: 13, fontSize: 13))
             }
         }
     }
