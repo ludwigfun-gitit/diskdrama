@@ -47,6 +47,9 @@ struct OnboardingSheet: View {
     /// two-presentations-on-one-view trap the onboarding skill records.
     @State private var showPurchase = false
     @State private var pricing = PricingService.shared
+    /// Set by "Skip ahead": the user is done waiting for the scan, not done with
+    /// the step. The scan keeps running behind the sheet.
+    @State private var skippedWait = false
     /// Polls while the sheet is open so the grant is noticed the moment it
     /// happens — "I'll notice the moment you grant it" has to be true.
     @State private var pollTimer: Timer?
@@ -246,10 +249,40 @@ struct OnboardingSheet: View {
     ///   are building momentum. The phase gets named instead.
     @ViewBuilder
     private var reveal: some View {
-        if model.scanEngine.isRunning || model.recommendations == nil {
-            scanning
-        } else {
+        if model.recommendations != nil && !model.scanEngine.isRunning {
             found
+        } else if skippedWait {
+            stillLooking
+        } else {
+            scanning
+        }
+    }
+
+    /// Skipped the wait, so there is no reveal to give — but the step still has
+    /// something to say, and it is the thing the funnel cannot afford to lose.
+    ///
+    /// "Skip ahead" used to call `finish()`, which closed onboarding outright.
+    /// That skipped the waiting *and* the payoff *and* the trial card — the only
+    /// place in the whole app that says there is a trial at all, when it ends, or
+    /// what it costs. A user on slow storage got a free tool and no idea it was
+    /// temporary, and would first learn otherwise from a banner on day eight.
+    ///
+    /// Degrading by omission rather than by zeros, per the skill: the reveal is
+    /// dropped because its numbers aren't in yet, and claiming a total mid-scan
+    /// would be worse than claiming nothing. Everything else stays.
+    private var stillLooking: some View {
+        VStack(alignment: .leading, spacing: Self.sectionSpacing) {
+            VStack(alignment: .leading, spacing: Self.withinSection) {
+                Text("I'll keep looking in the background")
+                    .font(Theme.display(28)).foregroundStyle(Theme.text)
+                Text("The scan carries on while you use DiskDrama — the tiers fill in as it goes, "
+                     + "and nothing is deleted or changed by it.")
+                    .font(Theme.body(15)).lineSpacing(5).foregroundStyle(Theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 520, alignment: .leading)
+            }
+            proMoment
+            loginItemOffer
         }
     }
 
@@ -535,6 +568,12 @@ struct OnboardingSheet: View {
                     .buttonStyle(QuietButtonStyle(height: 32))
             }
             Button(primaryLabel) {
+                // On the last step, the first press stops the waiting and shows
+                // what the step has to say; only the second one leaves.
+                if step == 3 && model.scanEngine.isRunning && !skippedWait {
+                    skippedWait = true
+                    return
+                }
                 if step == 1 {
                     // Persist before moving on, so the answers are already in
                     // force by the time the scan and the reveal read them.
@@ -565,7 +604,7 @@ struct OnboardingSheet: View {
         case 0:  "Get started"
         case 1:  "Continue"
         case 2:  hasAccess ? "Continue" : "Skip for now"
-        default: model.scanEngine.isRunning ? "Skip ahead" : "Start using DiskDrama"
+        default: (model.scanEngine.isRunning && !skippedWait) ? "Skip the wait" : "Start using DiskDrama"
         }
     }
 
