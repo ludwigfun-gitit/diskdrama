@@ -30,7 +30,11 @@ struct OnboardingSheet: View {
     /// Job 2's answers. Defaulted, never blank — a prefilled value reads as a
     /// recommendation, and it turns "fill this in" into "check this over".
     @State private var primaryUse = Settings.shared.primaryUse
-    @State private var lowThresholdGB = Int(Settings.shared.lowThresholdBytes / 1_000_000_000)
+    /// Snapped to one of the offered values, because the stored default (5 GB)
+    /// is not among them — so a fresh install showed three unselected buttons.
+    /// A blank choice is the exact opposite of a smart default: it hands the
+    /// user a decision instead of a recommendation.
+    @State private var lowThresholdGB = Self.nearestOffered(Settings.shared.lowThresholdBytes)
     /// Set when the scan is kicked off, so the reveal step starts it exactly once.
     @State private var startedScan = false
     /// Polls while the sheet is open so the grant is noticed the moment it
@@ -95,6 +99,13 @@ struct OnboardingSheet: View {
     /// threshold the menu-bar item actually warns at. Neither is a placebo —
     /// a question whose answer changes nothing retroactively devalues the ones
     /// that mattered.
+    private static let offeredThresholdsGB = [10, 20, 50]
+
+    private static func nearestOffered(_ bytes: Int64) -> Int {
+        let gb = Double(bytes) / 1_000_000_000
+        return offeredThresholdsGB.min { abs(Double($0) - gb) < abs(Double($1) - gb) } ?? 20
+    }
+
     private var guidingQuestions: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Two questions, then I'll get out of the way")
@@ -118,7 +129,7 @@ struct OnboardingSheet: View {
                 Text("Tell me when free space drops below")
                     .font(Theme.ui(13.5, weight: .semibold)).foregroundStyle(Theme.text)
                 HStack(spacing: 8) {
-                    ForEach([10, 20, 50], id: \.self) { gb in
+                    ForEach(Self.offeredThresholdsGB, id: \.self) { gb in
                         // One style with a selected state rather than two styles
                         // swapped: `buttonStyle` takes a concrete type, and
                         // branching between two of them needs an existential the
@@ -150,6 +161,12 @@ struct OnboardingSheet: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(label).font(Theme.ui(13, weight: .semibold))
                 Text(detail).font(Theme.body(11.5)).foregroundStyle(Theme.text3)
+                    // Two lines reserved whether or not the text needs both, so
+                    // the three cards are the same height. "Build folders,
+                    // caches, simulators" wraps and the other two don't, which
+                    // made Development taller and read as pre-selected emphasis
+                    // rather than as one option among three.
+                    .lineLimit(2, reservesSpace: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 13).padding(.vertical, 10)
@@ -170,8 +187,7 @@ struct OnboardingSheet: View {
             Group {
                 Text("Most of the space you can actually get back hides in ")
                 + Text("~/Library").font(Theme.mono(13.5))
-                + Text(". Without Full Disk Access I'll still work — I'll just tell you what I "
-                       + "couldn't see instead of guessing.")
+                + Text(". Full Disk Access lets me give you more helpful recommendations.")
             }
             .font(Theme.body(15)).lineSpacing(5)
             .foregroundStyle(Theme.text2)
@@ -310,7 +326,7 @@ struct OnboardingSheet: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(hasAccess
                      ? "Access granted — I can see everything now."
-                     : "Waiting for access — I'll notice the moment you grant it.")
+                     : "Waiting for access")
                     .font(Theme.body(13.5)).foregroundStyle(Theme.text)
                 // Said before macOS says otherwise, because its dialog is
                 // misleading here twice over: the restart is unnecessary — this
@@ -320,8 +336,7 @@ struct OnboardingSheet: View {
                 // Watching nothing happen after choosing it reads as a failure,
                 // at the exact moment the thing has in fact worked.
                 if !hasAccess {
-                    Text("macOS may offer to quit and reopen DiskDrama. You don't have to — I check by reading, "
-                         + "not by restarting, so I'll see the grant either way.")
+                    Text("No need to quit and reopen DiskDrama if macOS offers — choose Later and let's move on.")
                         .font(Theme.body(12)).foregroundStyle(Theme.text2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -412,7 +427,7 @@ struct OnboardingSheet: View {
 
     private var controls: some View {
         HStack(spacing: 10) {
-            if step == 1 && !hasAccess {
+            if step == 2 && !hasAccess {
                 Text("You can skip this and grant it later from Settings.")
                     .font(Theme.body(13)).foregroundStyle(Theme.text3)
             }
