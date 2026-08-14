@@ -404,8 +404,18 @@ struct ExplanationPanel: View {
             // that recolouring is the app's single most important safety signal.
             // Spending red one screen earlier, on a button that only opens a
             // dialog, is what would blunt it.
-            Button("Delete \(ByteFormat.compact(item.sizeBytes))") {
-                model.presentDeleteSheet(for: item)
+            // An expired trial does not disable this — it redirects it. A greyed
+            // button is the end of the conversation; a button that opens the
+            // paywall answers "why not?" and offers the way through. A running
+            // scan still disables, because that one resolves by waiting.
+            Button(model.entitlement.isActive
+                   ? "Delete \(ByteFormat.compact(item.sizeBytes))"
+                   : "Delete \(ByteFormat.compact(item.sizeBytes))…") {
+                if model.entitlement.isActive {
+                    model.presentDeleteSheet(for: item)
+                } else {
+                    model.presentPaywall(blocking: "Deleting")
+                }
             }
             .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 15, fontSize: 12.5))
             .blockedWhile(model.destructiveBlockReason)

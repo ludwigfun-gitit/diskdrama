@@ -193,7 +193,7 @@ struct TargetSheet: View {
                 }
             }
             .buttonStyle(AccentButtonStyle(height: 32, horizontalPadding: 18, fontSize: 13.5))
-            .blockedWhile(model.destructiveBlockReason)
+            .blockedWhile(model.actionBlockReason)
             .disabled(isWorking || (plan?.actionableBytes ?? 0) == 0)
         }
         .padding(.horizontal, 24)

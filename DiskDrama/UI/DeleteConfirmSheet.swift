@@ -108,7 +108,7 @@ struct DeleteConfirmSheet: View {
                                                isDestructive: !model.moveToTrash))
                 .focused($focus, equals: .confirm)
                 .disabled(isWorking || refusal != nil)
-                .blockedWhile(model.destructiveBlockReason)
+                .blockedWhile(model.actionBlockReason)
                 }
             }
         }

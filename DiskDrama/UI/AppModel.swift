@@ -49,12 +49,16 @@ final class AppModel {
         case delete(Recommendation)
         case batchClean(Tier)
         case target
+        case paywall(PaywallSheet.Reason)
+        case activate
 
         var id: String {
             switch self {
             case .delete(let item):  "delete-\(item.path)"
             case .batchClean(let t): "batch-\(t.rawValue)"
             case .target:            "target"
+            case .paywall:           "paywall"
+            case .activate:          "activate"
             }
         }
     }
@@ -164,6 +168,25 @@ final class AppModel {
     /// control can say the true thing rather than the dramatic one.
     var scanStartBlockReason: String? {
         scanEngine.isRunning ? "A scan is already running." : nil
+    }
+
+    /// The trial clock and the single entitlement gate.
+    let entitlement: Entitlement
+    let licence: LicenseStore
+
+    /// Why a destructive action is unavailable — a running scan or an ended
+    /// trial. Deliberately one property: a call site should ask "may I do this"
+    /// once and get a sentence, not consult two systems and compose an answer.
+    ///
+    /// Scan first. If both are true the scan is the more immediate fact, and it
+    /// resolves in a minute rather than needing a purchase.
+    var actionBlockReason: String? {
+        destructiveBlockReason ?? entitlement.blockReason
+    }
+
+    /// Opens the paywall for a specific denied action, naming it.
+    func presentPaywall(blocking action: String) {
+        activeSheet = .paywall(.blockedAction(action))
     }
 
     var deletionError: String?
@@ -430,6 +453,9 @@ final class AppModel {
     init(scanEngine: ScanEngine, disk: DiskMonitor) {
         self.scanEngine = scanEngine
         self.disk = disk
+        let licence = LicenseStore()
+        self.licence = licence
+        self.entitlement = Entitlement(licence: licence)
     }
 
     // MARK: - Data

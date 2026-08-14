@@ -40,7 +40,11 @@ struct TierPane: View {
                 // at a time, on purpose — so neither gets a button here.
                 if tier.allowsBatchApproval && !items.isEmpty {
                     Button("Clean all \(items.count)") {
-                        model.presentBatchSheet(for: tier)
+                        if model.entitlement.isActive {
+                            model.presentBatchSheet(for: tier)
+                        } else {
+                            model.presentPaywall(blocking: "Cleaning a whole tier at once")
+                        }
                     }
                     .buttonStyle(AccentButtonStyle(height: 29, horizontalPadding: 14))
                     .blockedWhile(model.destructiveBlockReason)

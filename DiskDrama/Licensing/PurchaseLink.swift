@@ -35,14 +35,22 @@ enum PurchaseLink {
     static let checkoutURL = URL(string:
         "https://bloosoftware-fulfillment.netlify.app/.netlify/functions/checkout?price=\(lookupKey)")!
 
-    /// Deliberately absent: the price.
+    /// Read-only price lookup, for display before checkout.
     ///
-    /// No amount, no formatted string, no cached figure. A number here is a
-    /// second source of truth that goes stale the moment the Dashboard changes
-    /// and is wrong on screen until the next release. If the paywall needs to
-    /// show a price, the answer is a read-only pricing endpoint — which does not
-    /// exist yet, and is Ludwig's call to commission rather than something to
-    /// paper over with a literal.
+    /// Note `?key=`, not the `?price=` that checkout takes — the endpoint is
+    /// deliberately generic because every app has the same stale-price problem.
+    /// It shares checkout's allowlist and its resolution, so what the paywall
+    /// shows can never disagree with what the customer is charged.
+    static let pricingURL = URL(string:
+        "https://bloosoftware-fulfillment.netlify.app/.netlify/functions/pricing?key=\(lookupKey)")!
+
+    /// Deliberately absent: a price *constant*.
+    ///
+    /// No literal amount, no compiled fallback string. A number in the binary is
+    /// a second source of truth that goes stale the moment the Dashboard changes
+    /// and is wrong in every non-USD storefront from the day it ships.
+    /// `PricingService` asks the endpoint above instead, and the paywall is built
+    /// to sell without a figure when it has none.
     static func openCheckout() {
         NSWorkspace.shared.open(checkoutURL)
     }

@@ -54,7 +54,7 @@ struct HistoryPane: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ForEach(model.cleanupLog) { entry in
-                    HistoryRow(entry: entry, blockReason: model.destructiveBlockReason) { Task { await model.undo(entry) } }
+                    HistoryRow(entry: entry, blockReason: model.actionBlockReason) { Task { await model.undo(entry) } }
                 }
                 Text(footer)
                     .font(Theme.body(12.5))

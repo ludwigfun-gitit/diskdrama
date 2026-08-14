@@ -33,6 +33,9 @@ struct MainWindow: View {
             case .delete(let item):  DeleteConfirmSheet(model: model, item: item, onScan: onScan)
             case .batchClean(let t): BatchCleanSheet(model: model, tier: t)
             case .target:            TargetSheet(model: model)
+            case .paywall(let why):  PaywallSheet(model: model, reason: why,
+                                                  onActivate: { model.activeSheet = .activate })
+            case .activate:          ActivationSheet(model: model)
             }
         }
     }
