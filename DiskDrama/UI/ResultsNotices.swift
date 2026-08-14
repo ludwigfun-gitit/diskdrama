@@ -16,8 +16,55 @@ struct ResultsNotices: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            trialBanner
             reducedModeBanner
             deletionNotice
+        }
+    }
+
+    /// The voluntary purchase surface, and the only unprompted one.
+    ///
+    /// A one-time-purchase desktop trial puts the real decision at expiry, not on
+    /// day zero, so this stays quiet until the last three days — then it says
+    /// what is ending and when. The date is real, which is what separates loss
+    /// framing from a manufactured deadline.
+    ///
+    /// Never shown to someone who has already paid. Being sold a thing you
+    /// bought is the fastest way to make a customer feel unseen.
+    @ViewBuilder
+    private var trialBanner: some View {
+        if model.entitlement.isTrialEndingSoon, case .trial(let days) = model.entitlement.status {
+            HStack(spacing: 11) {
+                Image(systemName: "clock")
+                    .font(.system(size: 14)).foregroundStyle(Theme.accent)
+                Text(days == 1
+                     ? "Last day of the trial. After today DiskDrama keeps showing you what's reclaimable, but can't clean it up."
+                     : "\(days) days left. After that DiskDrama keeps showing you what's reclaimable, but can't clean it up.")
+                    .font(Theme.body(12.5)).foregroundStyle(Theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button("See DiskDrama Pro") { model.activeSheet = .paywall(.userInitiated) }
+                    .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
+            }
+            .padding(.horizontal, 26).padding(.vertical, 10)
+            .background(Theme.panel)
+            .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
+        } else if case .trialExpired = model.entitlement.status {
+            HStack(spacing: 11) {
+                Image(systemName: "lock")
+                    .font(.system(size: 14)).foregroundStyle(Theme.text3)
+                Text("Read-only. Everything DiskDrama found is still here — Pro is what lets it act on any of it.")
+                    .font(Theme.body(12.5)).foregroundStyle(Theme.text2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Button("I have a key") { model.activeSheet = .activate }
+                    .buttonStyle(QuietButtonStyle(height: 24, fontSize: 12))
+                Button("See DiskDrama Pro") { model.activeSheet = .paywall(.trialEnded) }
+                    .buttonStyle(GhostButtonStyle(height: 24, horizontalPadding: 10, fontSize: 12))
+            }
+            .padding(.horizontal, 26).padding(.vertical, 10)
+            .background(Theme.panel)
+            .overlay(alignment: .bottom) { Rectangle().fill(Theme.hairline).frame(height: 1) }
         }
     }
 

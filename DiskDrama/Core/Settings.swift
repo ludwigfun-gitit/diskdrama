@@ -216,6 +216,16 @@ final class Settings {
         set { defaults.set(newValue, forKey: Key.onboardingStep.rawValue) }
     }
 
+    /// What the user said mostly fills this Mac.
+    ///
+    /// A guiding question with teeth: it picks the tier the app opens on and the
+    /// emphasis of the first-scan reveal. No placebo questions — an answer that
+    /// changes nothing devalues the ones that do, and users notice.
+    var primaryUse: String {
+        get { defaults.string(forKey: Key.primaryUse.rawValue) ?? "everything" }
+        set { defaults.set(newValue, forKey: Key.primaryUse.rawValue) }
+    }
+
     var hasCompletedOnboarding: Bool {
         get { defaults.bool(forKey: Key.completedOnboarding.rawValue) }
         set { defaults.set(newValue, forKey: Key.completedOnboarding.rawValue) }
@@ -244,6 +254,7 @@ final class Settings {
         case freeSpaceTarget     = "planner.freeSpaceTargetBytes"
         case completedOnboarding = "onboarding.completed"
         case onboardingStep      = "onboarding.step"
+        case primaryUse          = "onboarding.primaryUse"
         case fdaBannerDismissed  = "onboarding.fdaBannerDismissedAt"
         case hiddenBlindSpots    = "scan.hiddenBlindSpots"
         case undeletablePaths    = "deletion.refusedByOS"
