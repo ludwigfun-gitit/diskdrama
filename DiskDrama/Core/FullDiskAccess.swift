@@ -117,6 +117,25 @@ enum FullDiskAccess {
             home + "/Library/Application Support/AddressBook",
             home + "/Library/Application Support/com.apple.TCC",
             home + "/Library/Containers/com.apple.mail",
+
+            // "Data from other apps" — kTCCServiceSystemPolicyAppData, which is
+            // a separate consent from Files-and-Folders and from Full Disk
+            // Access. Every app's sandbox container lives under these two, so a
+            // walk without a grant meets one consent gate per app it reaches:
+            // observed on a reduced-mode install as a run of prompts naming
+            // other applications, starting with Music.
+            //
+            // Listing the whole tree rather than another per-app entry, because
+            // the previous single `com.apple.mail` line was answering the wrong
+            // question — this is not a list of apps worth avoiding, it is one
+            // location whose every child is gated.
+            //
+            // Only skipped when the grant is missing. With Full Disk Access these
+            // are the most valuable thing the scan reads — 42 GB of Containers on
+            // the development Mac — and `protectedSkips` is empty, so nothing
+            // here costs a granted user anything.
+            home + "/Library/Containers",
+            home + "/Library/Group Containers",
         ]
     }
 
