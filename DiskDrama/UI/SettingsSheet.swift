@@ -42,7 +42,6 @@ struct SettingsSheet: View {
     /// button did nothing — the identical mistake the onboarding card made, in a
     /// second place, because the fix there was applied to the symptom instead of
     /// to every caller that shares the cause.
-    @State private var purchase: PaywallSheet.Reason?
     @State private var showActivation = false
 
     private enum Tab: String {
@@ -101,13 +100,38 @@ struct SettingsSheet: View {
         // selection did not. Disabling it once here means no control added later
         // can reintroduce it, which is how it came back the last time.
         .focusEffectDisabled()
-        .sheet(item: $purchase) { reason in
-            PaywallSheet(model: model, reason: reason,
-                         onActivate: { purchase = nil; showActivation = true },
-                         onClose: { purchase = nil })
-        }
+        .background(FocusRingSuppressor())
         .sheet(isPresented: $showActivation) {
             ActivationSheet(model: model, onClose: { showActivation = false })
+        }
+    }
+
+    /// Turns focus rings off in AppKit, where they are drawn.
+    ///
+    /// `.focusEffectDisabled()` is the SwiftUI answer and it did not finish the
+    /// job here: the tab strip and the text fields are AppKit views underneath,
+    /// and they keep drawing their own ring — on the fields it traced a
+    /// rectangle around a control drawn as a rounded rect, which is why it
+    /// looked ill-fitting rather than merely unwanted.
+    ///
+    /// So this walks the hosting window once the sheet is up and clears
+    /// `focusRingType` on every view in it. Re-run on each layout pass because
+    /// SwiftUI rebuilds NSViews as tabs change, and a view created after the
+    /// sweep would arrive with its ring intact.
+    private struct FocusRingSuppressor: NSViewRepresentable {
+        func makeNSView(context: Context) -> NSView { NSView(frame: .zero) }
+
+        func updateNSView(_ view: NSView, context: Context) {
+            DispatchQueue.main.async {
+                guard let root = view.window?.contentView else { return }
+                Self.clear(root)
+            }
+        }
+
+        private static func clear(_ view: NSView) {
+            view.focusRingType = .none
+            if let control = view as? NSControl { control.focusRingType = .none }
+            view.subviews.forEach(clear)
         }
     }
 
@@ -162,13 +186,12 @@ struct SettingsSheet: View {
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(Theme.hairline, lineWidth: 1))
 
+            // Only when a value actually had to move. The standing explanation
+            // of why critical sits below warning was answering a question nobody
+            // asks until it happens — and when it does happen, `clampNote` says
+            // so about the specific number they typed.
             if let clampNote {
                 Text(clampNote).settingsCaption()
-            } else {
-                Text("Critical always stays below the warning level — a disk under the critical "
-                     + "figure is under the warning figure too, so the reverse would be a "
-                     + "contradiction.")
-                    .settingsCaption()
             }
         }
     }
@@ -275,9 +298,7 @@ struct SettingsSheet: View {
     }
 
     private var presentationSection: some View {
-        Section(title: "Where DiskDrama lives",
-                blurb: "It always sits in the menu bar. Opening the window normally also puts it "
-                     + "in the Dock, like any other app.") {
+        Section(title: "Where DiskDrama lives", blurb: nil) {
             Toggle("Menu bar only — no Dock icon", isOn: $menuBarOnly)
                 .toggleStyle(.checkbox)
                 .onChange(of: menuBarOnly) { _, new in
@@ -296,9 +317,9 @@ struct SettingsSheet: View {
 
     private var explanationsSection: some View {
         Section(title: "AI guidance",
-                blurb: "Tiering is done on this Mac, offline and free. A model can add detail on the "
-                     + "item you've selected — Apple's on-device one where available, otherwise "
-                     + "Claude with a key.") {
+                blurb: "DiskDrama sorts everything into tiers on this Mac, offline and free. "
+                     + "A model can add detail about whichever item you've selected: Apple's "
+                     + "on-device model if this Mac supports it, or Claude if you save a key.") {
             sourceStatus
             SecureField(hasStoredKey ? "A key is saved — paste a new one to replace it" : "sk-ant-…",
                         text: $apiKey)
@@ -421,18 +442,21 @@ struct SettingsSheet: View {
         }
     }
 
-    /// The licence, with a tab of its own.
+    /// The licence tab, which *is* the purchase — not a door to one.
     ///
-    /// It was the fifth of eleven sections in one long scroll, which is where it
-    /// drowned — found only by scrolling past four things you were not looking
-    /// for. Visuals gives its licence a top-level tab and this does the same, so
-    /// it is one click from anywhere and impossible to miss.
+    /// It used to open PaywallSheet, a window carrying the same two buttons the
+    /// tab already had. That is the user pressing Buy and being handed another
+    /// Buy: the second screen added a comparison and three answers, but nothing
+    /// that could not sit here, and everything it did add arrived one click
+    /// after the person had already decided.
     ///
-    /// Reachable on every day of the trial and after it. A purchase path that
-    /// appears only when the app decides to sell is unavailable at exactly the
-    /// moment the user is most willing.
+    /// So the content moved in. One screen, one Buy button, and the questions a
+    /// one-time-purchase buyer actually has answered next to it rather than
+    /// behind it. PaywallSheet still exists for the surfaces that genuinely
+    /// interrupt — a blocked action, an expired trial — where there is no tab
+    /// to put anything in.
     private var licencePane: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .center, spacing: 13) {
                 Image(systemName: licenceSymbol)
                     .font(.system(size: 17, weight: .medium))
@@ -453,24 +477,81 @@ struct SettingsSheet: View {
                 Spacer(minLength: 0)
             }
 
-            switch model.entitlement.status {
-            case .licensed:
+            if case .licensed = model.entitlement.status {
                 Button("Deactivate on this Mac") { model.licence.deactivate() }
                     .buttonStyle(GhostButtonStyle(height: 30, horizontalPadding: 13, fontSize: 13))
-            default:
+            } else {
+                whatALicenceChanges
+                purchaseQuestions
                 HStack(spacing: 9) {
-                    Button(buyLabel) { purchase = .userInitiated }
+                    Button(buyLabel) { PurchaseLink.openCheckout() }
                         .buttonStyle(AccentButtonStyle(height: 30, horizontalPadding: 15, fontSize: 13))
                     Button("I already have a key") { showActivation = true }
                         .buttonStyle(GhostButtonStyle(height: 30, horizontalPadding: 13, fontSize: 13))
                     Spacer(minLength: 0)
                 }
+                Text("Opens in your browser. One payment, no account, and nothing about your files "
+                     + "ever leaves this Mac.")
+                    .font(Theme.body(11.5))
+                    .foregroundStyle(Theme.text3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
 
-            Text("One payment, no account, and nothing about your files ever leaves this Mac. "
-                 + "The licence works on any Mac you use — activate it again with the key from your email.")
+    /// Keep-versus-locked, not a feature list — the live question is what a
+    /// licence actually changes, and the app has been demonstrating the rest.
+    private var whatALicenceChanges: some View {
+        HStack(alignment: .top, spacing: 18) {
+            licenceColumn("Works forever, free", tint: Theme.text3,
+                          items: ["Scanning, and every result",
+                                  "Why each thing is safe or isn't",
+                                  "History, watches and blind spots"])
+            licenceColumn("Needs a licence", tint: Theme.accent,
+                          items: ["Delete what you've approved",
+                                  "Clean a whole tier at once",
+                                  "Free-space target planning"])
+        }
+    }
+
+    private func licenceColumn(_ title: String, tint: Color, items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(title)
+                .font(Theme.ui(12, weight: .semibold))
+                .foregroundStyle(tint)
+            ForEach(items, id: \.self) { item in
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Circle().fill(tint.opacity(0.5)).frame(width: 3.5, height: 3.5)
+                    Text(item)
+                        .font(Theme.body(12))
+                        .foregroundStyle(Theme.text2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var purchaseQuestions: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            licenceFAQ("Is this a subscription?",
+                       "No. One payment, and the licence doesn't expire.")
+            licenceFAQ("What if I reinstall, or get a new Mac?",
+                       "Your key arrives by email and activates again. Nothing is tied to this machine.")
+        }
+        .padding(14)
+        .background(Theme.content, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .stroke(Theme.hairline, lineWidth: 1))
+    }
+
+    private func licenceFAQ(_ question: String, _ answer: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(question)
+                .font(Theme.ui(12, weight: .semibold))
+                .foregroundStyle(Theme.text2)
+            Text(answer)
                 .font(Theme.body(12))
-                .lineSpacing(3)
                 .foregroundStyle(Theme.text3)
                 .fixedSize(horizontal: false, vertical: true)
         }
